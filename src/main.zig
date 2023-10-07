@@ -1,4 +1,5 @@
 const std = @import("std");
+const bigEndien = std.mem.bigToNative;
 const testing = std.testing;
 
 const magicString = "\x0cGERBILDB3   \x00";
@@ -15,14 +16,32 @@ const RecordType = enum(u16) {
     Formula = 0x84,
     FormulaContinuation = 0x04
 };
-// zig fmt: on
-const Blob = packed struct(u1024) {
-    var data: [128]u8 = [128]u8{0 ** 128};
+
+const CharacterSize = enum(u3) {
+    OneByte = 1,
+    TwoByte = 2,
+    ThreeByte = 3,
 };
+
+
+// zig fmt: on
+
+const BlockIndex = enum(u16) {
+    None = 0xFFFF,
+};
+
 const Block = struct { data: [128]u8 };
 
+const FormDescriptionRecord = struct {
+    recordType: RecordType,
+    totalBlocks: u16,
+    linesInScreen: u16, //BE
+    length: u16, //BE len+lines+1
+    fields: [120]u8,
+};
+
 const Header = struct {
-    formDefinitionLocation: u16, // block# - 1
+    formDefinitionIndex: u16, // block# - 1
     lastUsedBlock: u16, // not accurate
     totalFileBlocks: u16, // dont count header
     dataRecords: u16,
@@ -32,8 +51,8 @@ const Header = struct {
     formRevisions: u16, // 1 indexed
     _1: u16,
     emptiesLength: u16,
-    tableViewLocation: u16, // block # - 1 or 0xFFFF for none
-    programRecordIndex: u16,
+    tableViewIndex: BlockIndex,
+    programRecordIndex: BlockIndex,
     _2: u16,
     _3: u16,
     nextFieldSize: u8,
@@ -44,13 +63,16 @@ const Reader = struct {
     bytes: []const u8,
     index: usize,
 
+    const Errors = error{
+        EndOfStream,
+    };
     pub fn init(bytes: []const u8) Reader {
         return .{ .bytes = bytes, .index = 0 };
     }
 
-    pub fn read(self: *Reader, comptime T: type) !T {
+    pub fn read(self: *Reader, comptime T: type) Errors!T {
         return switch (@typeInfo(T)) {
-            .Int => try self.readInt(T),
+            .Enum, .Int => try self.readInt(T),
             .Array => |array| {
                 var arr: [array.len]array.child = undefined;
                 var index: usize = 0;
@@ -64,9 +86,9 @@ const Reader = struct {
         };
     }
 
-    fn readInt(self: *Reader, comptime T: type) !T {
+    fn readInt(self: *Reader, comptime T: type) Errors!T {
         const size = @sizeOf(T);
-        if (self.index + size > self.bytes.len) return error.EndOfStream;
+        if (self.index + size > self.bytes.len) return Errors.EndOfStream;
 
         const slice = self.bytes[self.index .. self.index + size];
         const value = @as(*align(1) const T, @ptrCast(slice)).*;
@@ -74,7 +96,7 @@ const Reader = struct {
         return value;
     }
 
-    fn readStruct(self: *Reader, comptime T: type) !T {
+    fn readStruct(self: *Reader, comptime T: type) Errors!T {
         const fields = std.meta.fields(T);
 
         var item: T = undefined;
@@ -107,6 +129,11 @@ test "Open FOL File" {
 
     var reader = Reader.init(file);
     std.debug.print("Read in {} bytes\n", .{reader.bytes.len});
-    const parsed = try reader.read(Header);
-    std.debug.print("{any}\n", .{parsed});
+    const header = try reader.read(Header);
+    std.debug.print("{any}\n", .{header});
+    while (reader.read(Block)) |b| {
+        std.debug.print("{any}\n", .{b});
+    } else |err| {
+        try testing.expect(err == error.EndOfStream);
+    }
 }
