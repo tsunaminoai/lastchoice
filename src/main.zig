@@ -12,13 +12,15 @@ index: usize = 0,
 head: ?Header = null,
 allocator: Allocator,
 blocks: ?std.ArrayList(Block) = null,
+empties: ?std.ArrayList(Empty) = null,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
 
-const Error = error{EndOfStream} || anyerror;
+const Error = error{ EndOfStream, UnhandledBlockType } || anyerror;
 
 const Block = extern struct { recordType: RecordType, data: [126]u8 };
+const Empty = extern struct { entry1: u16, entry2: u16 };
 
 const BlockIndex = enum(u16) {
     None = 0xFFFF,
@@ -54,6 +56,7 @@ const RecordType = enum(u16) {
     Formula = 0x84,
     FormulaContinuation = 0x04,
     Empty = 0x0,
+    _,
 };
 
 pub fn init(allocator: Allocator) FCF {
@@ -95,11 +98,22 @@ pub fn open(
         std.debug.print(fmt, .{ head.formDefinitionIndex, head.lastUsedBlock, head.totalFileBlocks, head.dataRecords, head.availableDBFields, head.formLength, head.formRevisions, head.emptiesLength, head.tableViewIndex, head.programRecordIndex, head.nextFieldSize, head.diskVar });
     }
     self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.?.totalFileBlocks);
-
+    self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.?.totalFileBlocks);
+    try self.readEmpties();
     try self.read();
 }
 
+fn readEmpties(self: *FCF) Error!void {
+    // move to the fifth block
+    self.index = @sizeOf(Block) * 4;
+    for (0..self.head.?.emptiesLength) |_| {
+        try self.empties.?.append(try self.readStruct(Empty));
+    }
+}
+
 fn read(self: *FCF) Error!void {
+    self.index = @sizeOf(Block) * self.head.?.formDefinitionIndex;
+
     while (try self.peekBlock()) |blockType| {
         switch (blockType) {
             else => try self.blocks.?.append(try self.readStruct(Block)),
@@ -109,10 +123,13 @@ fn read(self: *FCF) Error!void {
 
 fn peekBlock(self: *FCF) Error!?RecordType {
     if (self.index + @sizeOf(Block) > self.buffer.?.len) return null;
-    const tag = std.mem.readIntSlice(u16, self.buffer.?[self.index .. self.index + 2], std.builtin.Endian.Little);
+    const tagInt = std.mem.readIntSlice(u16, self.buffer.?[self.index + 1 .. self.index + 3], std.builtin.Endian.Little);
+    const tag = @as(RecordType, @enumFromInt(tagInt));
 
-    return @as(RecordType, @enumFromInt(tag));
+    std.debug.print("Next Block Tag: {} {}\n", .{ tagInt, tag });
+    return tag;
 }
+
 fn readStruct(self: *FCF, comptime T: type) Error!T {
     const fields = std.meta.fields(T);
 
@@ -151,6 +168,7 @@ fn readInt(self: *FCF, comptime T: type) Error!T {
 pub fn deinit(self: *FCF) void {
     self.allocator.free(self.buffer.?);
     self.blocks.?.deinit();
+    self.empties.?.deinit();
     self.* = undefined;
 }
 
@@ -161,4 +179,16 @@ test "Read header" {
     defer fol.deinit();
 
     try fol.open("RESERVE.FOL");
+    for (fol.blocks.?.items, 0..) |b, i| {
+        std.debug.print("{} {any}\n", .{ i, b });
+        if (i > 10) {
+            break;
+        }
+    }
+    for (fol.empties.?.items, 0..) |e, i| {
+        std.debug.print("{} {any}\n", .{ i, e });
+        if (i > 10) {
+            break;
+        }
+    }
 }
