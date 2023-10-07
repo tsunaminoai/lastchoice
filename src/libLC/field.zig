@@ -24,8 +24,8 @@ pub fn init(allocator: std.mem.Allocator, name: Text) !Field {
     } };
 }
 
-pub fn deinit(self: *Field) void {
-    if (self.value.General) |text| text.deinit();
+pub fn deinit(_: Field) void {
+    // if (self.value == .General) self.value.General.deinit();
 }
 
 pub const Kind = enum(u8) {
@@ -57,9 +57,9 @@ pub const Value = union(Kind) {
         };
     }
 
-    pub fn fromSlice(comptime tag: Kind, allocator: std.mem.Allocator, text: []const u8) !Value {
+    pub fn fromSlice(tag: Kind, allocator: std.mem.Allocator, text: []const u8) !Value {
         return switch (tag) {
-            .General => .{ .General = try Text.init(allocator, text) },
+            .General => .{ .General = try Text.dupe(allocator, text) },
             .Numeric => .{ .Numeric = try std.fmt.parseFloat(f32, text) },
             .Date => .{ .Date = try Value.parseDate(text) },
             .Time => .{ .Time = try Value.parseTime(text) },

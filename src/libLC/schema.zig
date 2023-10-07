@@ -14,6 +14,7 @@ lines_on_screen: u16 = 0,
 lines_length: u16 = 0,
 fields: Array(Field),
 num_fields: usize = 0,
+first_data_block: usize = 0,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -73,8 +74,8 @@ fn readDataFromBlocks(
         @memcpy(field_data[idx .. idx + nextblock.data.common.data.len], &nextblock.data.common.data);
         idx += nextblock.data.common.data.len;
     }
+    self.first_data_block = header.formDefinitionIndex + form_data.num_blocks;
 
-    std.debug.print("{}", .{header});
     try self.readFields(field_data[0..idx]);
 }
 
@@ -96,7 +97,7 @@ fn readFields(self: *Schema, data: []const u8) !void {
     }
 
     std.debug.print("Found {} Fields\n", .{self.fields.items.len});
-    for (self.fields.items) |field| {
-        std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.value) });
-    }
+    // for (self.fields.items) |field| {
+    //     std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.value) });
+    // }
 }

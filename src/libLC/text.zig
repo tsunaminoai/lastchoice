@@ -18,18 +18,11 @@ pub fn init(allocator: Allocator) Text {
 }
 
 /// Creates a new Text from a slice of bytes.
-pub fn dupe(allocator: std.mem.Allocator, txt: []const u8) !*Text {
-    const self = try allocator.create(Text);
-    errdefer allocator.destroy(self);
-
-    var str = std.ArrayList(u8).init(allocator);
+pub fn dupe(allocator: std.mem.Allocator, txt: []const u8) !Text {
+    var str = Text.init(allocator);
     errdefer str.deinit();
-    try str.appendSlice(txt);
-    self.* = .{
-        .string = str,
-        .len = txt.len,
-    };
-    return self;
+    try str.string.appendSlice(txt);
+    return str;
 }
 
 /// Initializes a Text from a byte array.
@@ -38,7 +31,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
     const len = std.mem.readInt(u16, data[0..2], .big);
     // std.debug.print("Consuming: {X}\n", .{data});
     if (len > data.len - 2) {
-        std.log.err("Text length {} exceeds data length {}\nData: {X}", .{ len, data.len, data });
+        std.log.err("\nText length {} exceeds data length {}\nData: {X}", .{ len, data.len, data });
         return error.InvalidLength;
     }
     const slice = data[2..];
