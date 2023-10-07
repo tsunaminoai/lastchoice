@@ -19,7 +19,7 @@ const extension = "FOL";
 
 const Error = error{ EndOfStream, UnhandledBlockType } || anyerror;
 
-const Block = extern struct { recordType: RecordType, data: [126]u8 };
+const Block = extern struct { recordType: BlockTypeInt, data: [126]u8 };
 const Empty = extern struct { entry1: u16, entry2: u16 };
 
 const BlockIndex = enum(u16) {
@@ -46,16 +46,16 @@ const Header = extern struct {
     diskVar: [128 - 41]u8,
 };
 
-const RecordType = enum(u16) {
-    DataRecord = 0x81,
-    DataContinuation = 0x01,
-    FormDescriptionView = 0x82,
-    FormDescriptionContinuation = 0x02,
-    TableView = 0x83,
-    TableViewContinuation = 0x03,
-    Formula = 0x84,
-    FormulaContinuation = 0x04,
+const BlockTypeInt = enum(u16) {
     Empty = 0x0,
+    DataContinuation = 0x01,
+    FormDescriptionContinuation = 0x02,
+    TableViewContinuation = 0x03,
+    FormulaContinuation = 0x04,
+    DataRecord = 0x81,
+    FormDescriptionView = 0x82,
+    TableView = 0x83,
+    Formula = 0x84,
     _,
 };
 
@@ -116,17 +116,17 @@ fn read(self: *FCF) Error!void {
 
     while (try self.peekBlock()) |blockType| {
         switch (blockType) {
+            .FormDescriptionView => try self.blocks.?.append(try self.readStruct(Block)),
             else => try self.blocks.?.append(try self.readStruct(Block)),
         }
     }
 }
 
-fn peekBlock(self: *FCF) Error!?RecordType {
+fn peekBlock(self: *FCF) Error!?BlockTypeInt {
     if (self.index + @sizeOf(Block) > self.buffer.?.len) return null;
     const tagInt = std.mem.readIntSlice(u16, self.buffer.?[self.index + 1 .. self.index + 3], std.builtin.Endian.Little);
-    const tag = @as(RecordType, @enumFromInt(tagInt));
+    const tag = @as(BlockTypeInt, @enumFromInt(tagInt));
 
-    std.debug.print("Next Block Tag: {} {}\n", .{ tagInt, tag });
     return tag;
 }
 
