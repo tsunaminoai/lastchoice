@@ -3,6 +3,7 @@ const std = @import("std");
 const FCF = @This(); //FirstChoice File
 
 const Allocator = std.mem.Allocator;
+const Endien = std.builtin.Endian;
 
 const bigToNative = std.mem.bigToNative;
 const nativeToBig = std.mem.nativeToBig;
@@ -17,7 +18,7 @@ empties: ?std.ArrayList(Empty) = null,
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
 
-const Error = error{ EndOfStream, UnhandledBlockType } || anyerror;
+const Error = error{ EndOfStream, UnhandledBlockType, BadTextCharacter } || anyerror;
 
 const Block = extern struct { recordType: BlockTypeInt, data: [126]u8 };
 const Empty = extern struct { entry1: u16, entry2: u16 };
@@ -165,6 +166,81 @@ fn readInt(self: *FCF, comptime T: type) Error!T {
     return value;
 }
 
+const Field = struct {};
+fn readFields(self: *FCF, data: *align(2) const [120]u8) !Field {
+    var fieldList = std.ArrayList(Field).init(self.allocator);
+    _ = fieldList;
+    var i: usize = 0;
+    while (i < data.len) {
+        const size = std.mem.readInt(u16, data[0..2], Endien.Big);
+        i += 2;
+
+        var j: usize = 0;
+        while (j < size) {
+            var idx = i + j;
+            switch (data[idx]) {
+                // carriage return
+                0x13 => |char| {
+                    std.debug.print("{c}", .{char});
+                    j += 2;
+                },
+                // ascii 1 byte
+                0x00, 0x7F => |char| {
+                    std.debug.print("{c}", .{char});
+                    j += 1;
+                },
+                0x80, 0x85 => |char| {
+                    std.debug.print("{c}", .{char});
+                    // handle two byte
+                    switch (data[idx + 1]) {
+                        0x90, 0x94 => {
+                            std.debug.print("{x}", .{char});
+                        },
+                        else => unreachable,
+                    }
+                    j += 2;
+                },
+                else => {
+                    std.debug.print("Unknown text byte: {X}\n", .{data[idx]});
+                    j += 1;
+                    continue;
+                },
+            }
+        }
+        std.debug.print("{any}\n", .{data[i]});
+    }
+    return Field{};
+}
+const Form = struct {
+    fields: []Field,
+    numBlocks: u16,
+    lines: u16,
+    length: u16,
+    data: Field,
+};
+
+fn readForm(self: *FCF, b: Block) !Form {
+    return Form{
+        .fields = &[_]Field{},
+        .numBlocks = std.mem.readInt(u16, b.data[0..2], Endien.Little),
+        .lines = std.mem.readInt(u16, b.data[2..4], Endien.Big),
+        .length = std.mem.readInt(u16, b.data[4..6], Endien.Big),
+        .data = try self.readFields(b.data[6..]),
+    };
+}
+
+fn parseBlocks(self: *FCF) !void {
+    for (self.blocks.?.items) |b| {
+        switch (b.recordType) {
+            .FormDescriptionView => {
+                const form = self.readForm(b);
+                std.debug.print("{any}\n", .{form});
+            },
+            else => {},
+        }
+    }
+}
+
 pub fn deinit(self: *FCF) void {
     self.allocator.free(self.buffer.?);
     self.blocks.?.deinit();
@@ -179,16 +255,5 @@ test "Read header" {
     defer fol.deinit();
 
     try fol.open("RESERVE.FOL");
-    for (fol.blocks.?.items, 0..) |b, i| {
-        std.debug.print("{} {any}\n", .{ i, b });
-        if (i > 10) {
-            break;
-        }
-    }
-    for (fol.empties.?.items, 0..) |e, i| {
-        std.debug.print("{} {any}\n", .{ i, e });
-        if (i > 10) {
-            break;
-        }
-    }
+    try fol.parseBlocks();
 }
