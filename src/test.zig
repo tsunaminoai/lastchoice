@@ -46,7 +46,6 @@ pub fn main() anyerror!void {
     var alloc = gpa.allocator();
 
     const file = try std.fs.cwd().openFile("RESERVE.FOL", .{});
-    defer file.close();
 
     var blockList = std.ArrayList(GenericBlock).init(alloc);
     defer blockList.deinit();
@@ -59,6 +58,7 @@ pub fn main() anyerror!void {
             return error.AHHHH;
         }
     }
+    file.close();
 
     std.log.debug("Read {} blocks.\n", .{blockList.items.len});
 
