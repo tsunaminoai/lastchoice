@@ -30,6 +30,10 @@ const Form = struct {
     }
 };
 
+const Record = struct {
+    data: []u8,
+};
+
 const GenericBlock = extern struct {
     blockType: BlockTag,
     blockData: [126]u8,
@@ -59,6 +63,11 @@ pub fn main() anyerror!void {
     std.log.debug("Read {} blocks.\n", .{blockList.items.len});
 
     var form: Form = undefined;
+    var head: Header = @bitCast(blockList.items[0]);
+
+    var recordList = std.ArrayList(Record).init(alloc);
+    defer recordList.deinit();
+
     for (blockList.items, 0..) |*block, i| {
         std.log.debug("Block {}: {any}\n", .{ i, block });
 
@@ -73,9 +82,25 @@ pub fn main() anyerror!void {
                     std.mem.copy(u8, form.data[120 + (j - 1) * 128 ..], &block.blockData);
                 }
             },
+            .FormDescriptionContinuation => continue,
+            .DataRecord => {
+                const numBlocks = std.mem.readIntSliceLittle(u16, block.blockData[0..2]);
+                var data = try alloc.alloc(u8, numBlocks * 128);
+                defer alloc.free(data);
+
+                for (0..numBlocks) |j| {
+                    std.mem.copy(u8, data, blockList.items[i + j].blockData[2..]);
+                }
+                try recordList.append(Record{ .data = data });
+            },
+            .DataContinuation => continue,
             else => {},
         }
     }
+    std.debug.assert(head.dataRecords == recordList.items.len);
+    std.debug.assert(form.data.len == form.length);
+
     defer form.deinit(alloc);
-    std.log.debug("{any} {}\n", .{ form, form.data.len });
+    std.log.debug("{any}\n", .{head});
+    std.log.debug("{any} {} \n", .{ recordList, recordList.items.len });
 }
