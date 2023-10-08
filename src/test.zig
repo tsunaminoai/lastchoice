@@ -45,7 +45,7 @@ pub fn main() anyerror!void {
 
     var alloc = gpa.allocator();
 
-    const file = try std.fs.cwd().openFile("RESERVE.FOL", .{});
+    const file = try std.fs.cwd().openFile("ALUMNI.FOL", .{});
 
     var blockList = std.ArrayList(GenericBlock).init(alloc);
     defer blockList.deinit();
@@ -69,7 +69,7 @@ pub fn main() anyerror!void {
     defer recordList.deinit();
 
     for (blockList.items, 0..) |*block, i| {
-        std.log.debug("Block {}: {any}\n", .{ i, block });
+        // std.log.debug("Block {}: {any}\n", .{ i, block });
 
         switch (block.blockType) {
             .FormDescriptionView => {
@@ -79,7 +79,7 @@ pub fn main() anyerror!void {
                 form = try Form.init(lines, 120 + numBlocks * 128, alloc);
                 std.mem.copy(u8, form.data, &block.blockData);
                 for (1..numBlocks) |j| {
-                    std.mem.copy(u8, form.data[120 + (j - 1) * 128 ..], &block.blockData);
+                    std.mem.copy(u8, form.data[120 + (j - 1) * 128 ..], &blockList.items[i + j].blockData);
                 }
             },
             .FormDescriptionContinuation => continue,
@@ -95,7 +95,9 @@ pub fn main() anyerror!void {
                 try recordList.append(Record{ .data = data });
             },
             .DataContinuation => continue,
-            else => {},
+            else => {
+                std.log.warn("Block type {X} not implemented\n", .{block.blockType});
+            },
         }
     }
     std.debug.assert(head.dataRecords == recordList.items.len);
@@ -103,5 +105,80 @@ pub fn main() anyerror!void {
 
     defer form.deinit(alloc);
     std.log.debug("{any}\n", .{head});
-    std.log.debug("{any} {} \n", .{ recordList, recordList.items.len });
+    // std.log.debug("{any} {} \n", .{ recordList, recordList.items.len });
+
+    std.log.debug("{any}\n", .{form.data});
+    var i: usize = 0;
+
+    var charList = std.ArrayList(TextChar).init(alloc);
+    defer charList.deinit();
+
+    while (i < form.data.len) {
+        var char = form.data[i];
+        var newChar = TextChar{ .character = char, .attributes = ChatacterAttributeMask{} };
+        switch (char) {
+            0x0, 0x7F => {
+                //todo: plain char
+                i += 1;
+            },
+            else => |c| {
+                // handle multibyte
+                newChar.character = c & 0x7F;
+                const byte2 = form.data[i + 1];
+                switch (byte2) {
+                    0xD0, 0xDF => {
+                        //need 3rd byte for background text or field text
+                        const byte3 = form.data[i + 2];
+                        newChar.setAtttributes(byte3);
+
+                        i += 3;
+                    },
+                    0x81, 0x8F => {
+                        //normal text
+                        i += 2;
+                    },
+                    0x90, 0x9F => {
+                        //field names
+                        i += 2;
+                    },
+                    else => {
+                        //todo
+                        i += 2;
+                    },
+                }
+            },
+        }
+        try charList.append(newChar);
+    }
+
+    std.log.debug("Read in {} chars\n", .{charList.items.len});
 }
+
+const ChatacterAttributeMask = packed struct(u8) {
+    underline: bool = false,
+    bold: bool = false,
+    italic: bool = false,
+    _more: u5 = 0,
+};
+
+const TextChar = struct {
+    character: u8 = 0,
+    attributes: ChatacterAttributeMask,
+
+    const Self = @This();
+
+    pub fn setBold(self: *Self, checkByte: u8) void {
+        self.attributes.bold = checkByte & 0x2 == 0x2;
+    }
+    pub fn setItalic(self: *Self, checkByte: u8) void {
+        self.attributes.italic = checkByte & 0x4 == 0x4;
+    }
+    pub fn setUnderline(self: *Self, checkByte: u8) void {
+        self.attributes.bold = checkByte & 0x1 == 0x1;
+    }
+    pub fn setAtttributes(self: *Self, maskByte: u8) void {
+        self.setBold(maskByte);
+        self.setItalic(maskByte);
+        self.setUnderline(maskByte);
+    }
+};
