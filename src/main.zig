@@ -20,7 +20,7 @@ const extension = "FOL";
 
 const Error = error{ EndOfStream, UnhandledBlockType, BadTextCharacter } || anyerror;
 
-const Block = extern struct { recordType: BlockTypeInt, data: [126]u8 };
+pub const Block = extern struct { recordType: BlockTypeInt, data: [126]u8 };
 const Empty = extern struct { entry1: u16, entry2: u16 };
 
 const BlockIndex = enum(u16) {
@@ -28,7 +28,7 @@ const BlockIndex = enum(u16) {
     _,
 };
 
-const Header = extern struct {
+pub const Header = extern struct {
     formDefinitionIndex: u16, // block# - 1
     lastUsedBlock: u16, // not accurate
     totalFileBlocks: u16, // dont count header
@@ -47,7 +47,7 @@ const Header = extern struct {
     diskVar: [128 - 41]u8,
 };
 
-const BlockTypeInt = enum(u16) {
+pub const BlockTypeInt = enum(u16) {
     Empty = 0x0,
     DataContinuation = 0x01,
     FormDescriptionContinuation = 0x02,
