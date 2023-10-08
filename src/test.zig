@@ -89,6 +89,7 @@ pub fn main() anyerror!void {
                 defer alloc.free(data);
 
                 for (0..numBlocks) |j| {
+                    //todo: remember theres an extra byte in the first block that needs removed
                     std.mem.copy(u8, data, blockList.items[i + j].blockData[2..]);
                 }
                 try recordList.append(Record{ .data = data });
