@@ -20,7 +20,7 @@ const FieldType = enum(u8) {
     }
 };
 
-const Field = struct {
+pub const Field = struct {
     fieldType: FieldType = FieldType.Text,
     fieldStyle: Text.TextStyles = Text.TextStyles{},
     name: std.ArrayList(Text.TextCharacter) = undefined,

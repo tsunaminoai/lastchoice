@@ -1,7 +1,7 @@
 const std = @import("std");
 const FCF = @import("fcf.zig");
 
-const TextStyles = packed struct(u8) {
+pub const TextStyles = packed struct(u8) {
     normal: bool = false,
     underline: bool = false,
     bold: bool = false,
@@ -9,7 +9,7 @@ const TextStyles = packed struct(u8) {
     _padding: enum(u4) { unset } = .unset,
 };
 
-const Baseline = packed struct(u8) {
+pub const Baseline = packed struct(u8) {
     normalBackground: bool = false,
     sub: bool = false,
     subBackground: bool = false,
@@ -18,13 +18,13 @@ const Baseline = packed struct(u8) {
     _padding: enum(u3) { unset } = .unset,
 };
 
-const TextCharacter = struct {
+pub const TextCharacter = struct {
     char: u8 = 0,
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
 };
 
-fn decodeText(self: *FCF, bytes: []const u8, size: usize) !std.ArrayList(TextCharacter) {
+pub fn decodeText(self: *FCF, bytes: []const u8, size: usize) !std.ArrayList(TextCharacter) {
     var idx: usize = 0;
     _ = size;
 

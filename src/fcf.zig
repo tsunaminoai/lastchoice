@@ -17,7 +17,7 @@ head: Header = undefined,
 allocator: Allocator,
 blocks: std.ArrayList(Block.Block) = undefined,
 empties: std.ArrayList(Block.Empty) = undefined,
-form: Form = undefined,
+form: Form.Form = undefined,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
@@ -37,16 +37,16 @@ pub fn init(allocator: Allocator) FCF {
 
 pub fn deinit(self: *FCF) void {
     self.allocator.free(self.buffer);
+    for (self.blocks.items) |*b| {
+        b.deinit(self.allocator);
+    }
     self.blocks.deinit();
     self.form.deinit();
     self.empties.deinit();
     self.* = undefined;
 }
 
-pub fn open(
-    self: *FCF,
-    fileName: []const u8,
-) Error!void {
+pub fn open(self: *FCF, fileName: []const u8) Error!void {
     const file = try std.fs.cwd().openFile(fileName, .{});
     defer file.close();
 

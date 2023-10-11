@@ -5,8 +5,8 @@ const Block = @import("block.zig");
 
 const Endien = std.builtin.Endian;
 
-const Form = struct {
-    fields: std.ArrayList(Field) = undefined,
+pub const Form = struct {
+    fields: std.ArrayList(Field.Field) = undefined,
     numBlocks: u16 = 0,
     lines: u16 = 0,
     length: u16 = 0,

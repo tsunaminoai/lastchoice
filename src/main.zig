@@ -8,5 +8,7 @@ pub fn main() anyerror!void {
     var alloc = gpa.allocator();
 
     var f = FCF.init(alloc);
+    defer f.deinit();
+
     try f.open("RESERVE.FOL");
 }

@@ -4,6 +4,10 @@ const FCF = @import("fcf.zig");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
+pub const Error = error{
+    InvalidBlockType,
+};
+
 pub const BlockTypeInt = enum(u16) {
     Empty = 0x0,
     DataContinuation = 0x01,
@@ -14,12 +18,30 @@ pub const BlockTypeInt = enum(u16) {
     FormDescriptionView = 0x82,
     TableView = 0x83,
     Formula = 0x84,
-    _,
+
+    pub fn fromInt(int: u16) Error!BlockTypeInt {
+        switch (int) {
+            0x0...0x4, 0x81...0x84 => {
+                return @as(BlockTypeInt, @enumFromInt(int));
+            },
+            else => {
+                return Error.InvalidBlockType;
+            },
+        }
+    }
+
+    pub fn fromSlice(int: []const u8) Error!BlockTypeInt {
+        return @This().fromInt(std.mem.readIntSliceBig(u16, int));
+    }
 };
 
-pub const Block = extern struct {
+pub const Block = struct {
     recordType: BlockTypeInt,
-    data: *[126]u8,
+    data: []u8,
+
+    pub fn deinit(self: *@This(), alloc: Allocator) void {
+        alloc.free(self.data);
+    }
 };
 
 pub const Empty = extern struct {
@@ -32,19 +54,26 @@ pub const BlockIndex = enum(u16) {
     _,
 };
 
-pub fn readBlocks(size: usize, buffer: []const u8, alloc: Allocator) !ArrayList(Block) {
+pub fn readBlocks(numBlocks: usize, buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     var blockList = ArrayList(Block).init(alloc);
     errdefer blockList.deinit();
 
-    var window = std.mem.window(u8, buffer, size, @sizeOf(Block));
-    while (window.next()) |*block| {
-        const blockTag = std.mem.readIntSliceBig(u16, block.*);
-        const newBlock = Block{
-            .recordType = @as(BlockTypeInt, @enumFromInt(blockTag)),
+    var blocks = std.mem.window(u8, buffer, numBlocks, @sizeOf(Block));
+    outer: while (blocks.next()) |*block| {
+        std.log.debug("{any}\n", .{block});
+        const blockTag = BlockTypeInt.fromSlice(block.ptr[0..2]) catch |err| {
+            if (err == Error.InvalidBlockType) {
+                std.log.warn("Unknown blocktype: 0x{s}", .{std.fmt.bytesToHex(block.ptr[0..2], .upper)});
+                continue :outer;
+            } else return err;
+        };
+        var newBlock = Block{
+            .recordType = blockTag,
             .data = undefined,
         };
-
-        std.mem.copyForwards(u8, newBlock.data, buffer[2..]);
+        var data = try alloc.alloc(u8, 126);
+        std.mem.copy(u8, data, block.ptr[2..128]);
+        newBlock.data = data;
         try blockList.append(newBlock);
     }
 
