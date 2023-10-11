@@ -49,6 +49,8 @@ const Field = struct {
     name: std.ArrayList(TextCharacter) = undefined,
 
     pub fn print(self: *@This()) void {
+        std.debug.print("Field: ", .{});
+
         for (self.name.items) |char| {
             std.debug.print("{c}", .{char.char});
         }

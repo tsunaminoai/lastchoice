@@ -14,6 +14,7 @@ head: ?Header = null,
 allocator: Allocator,
 blocks: ?std.ArrayList(Block) = null,
 empties: ?std.ArrayList(Empty) = null,
+form: ?Form = null,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
@@ -61,6 +62,7 @@ pub const BlockTypeInt = enum(u16) {
 };
 
 pub fn init(allocator: Allocator) FCF {
+    _ = std.log.defaultLogEnabled(std.log.Level.debug);
     return .{
         .buffer = undefined,
         .head = undefined,
@@ -78,7 +80,7 @@ pub fn open(
     self.buffer = try file.readToEndAlloc(self.allocator, 4 * 1024 * 1024);
     self.head = try self.readStruct(Header);
 
-    std.debug.print("Loaded {} bytes\n", .{self.buffer.?.len});
+    std.log.debug("Loaded {} bytes\n", .{self.buffer.?.len});
     const fmt =
         \\
         \\Form Index: {}
@@ -96,7 +98,7 @@ pub fn open(
         \\
     ;
     if (self.head) |head| {
-        std.debug.print(fmt, .{ head.formDefinitionIndex, head.lastUsedBlock, head.totalFileBlocks, head.dataRecords, head.availableDBFields, head.formLength, head.formRevisions, head.emptiesLength, head.tableViewIndex, head.programRecordIndex, head.nextFieldSize, head.diskVar });
+        std.log.debug(fmt, .{ head.formDefinitionIndex, head.lastUsedBlock, head.totalFileBlocks, head.dataRecords, head.availableDBFields, head.formLength, head.formRevisions, head.emptiesLength, head.tableViewIndex, head.programRecordIndex, head.nextFieldSize, head.diskVar });
     }
     self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.?.totalFileBlocks);
     self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.?.totalFileBlocks);
@@ -136,18 +138,18 @@ fn readStruct(self: *FCF, comptime T: type) Error!T {
 
     var item: T = undefined;
     inline for (fields) |field| {
-        @field(item, field.name) = try self.readField(field.type);
+        @field(item, field.name) = try self.readStructField(field.type);
     }
     return item;
 }
-fn readField(self: *FCF, comptime T: type) Error!T {
+fn readStructField(self: *FCF, comptime T: type) Error!T {
     return switch (@typeInfo(T)) {
         .Enum, .Int => try self.readInt(T),
         .Array => |array| {
             var arr: [array.len]array.child = undefined;
             var index: usize = 0;
             while (index < array.len) : (index += 1) {
-                arr[index] = try self.readField(array.child);
+                arr[index] = try self.readStructField(array.child);
             }
             return arr;
         },
@@ -166,75 +168,162 @@ fn readInt(self: *FCF, comptime T: type) Error!T {
     return value;
 }
 
-const Field = struct {};
-fn readFields(self: *FCF, data: *align(2) const [120]u8) !Field {
-    var fieldList = std.ArrayList(Field).init(self.allocator);
-    _ = fieldList;
-    var i: usize = 0;
-    while (i < data.len) {
-        const size = std.mem.readInt(u16, data[0..2], Endien.Big);
-        i += 2;
-
-        var j: usize = 0;
-        while (j < size) {
-            var idx = i + j;
-            switch (data[idx]) {
-                // carriage return
-                0x13 => |char| {
-                    std.debug.print("{c}", .{char});
-                    j += 2;
-                },
-                // ascii 1 byte
-                0x00, 0x7F => |char| {
-                    std.debug.print("{c}", .{char});
-                    j += 1;
-                },
-                0x80, 0x85 => |char| {
-                    std.debug.print("{c}", .{char});
-                    // handle two byte
-                    switch (data[idx + 1]) {
-                        0x90, 0x94 => {
-                            std.debug.print("{x}", .{char});
-                        },
-                        else => unreachable,
-                    }
-                    j += 2;
-                },
-                else => {
-                    std.debug.print("Unknown text byte: {X}\n", .{data[idx]});
-                    j += 1;
-                    continue;
-                },
-            }
+const FieldType = enum(u8) {
+    Text,
+    Numeric,
+    Date,
+    Time,
+    Bool,
+    _,
+    pub fn decode(byte: u8) FieldType {
+        const check = byte & 0xF;
+        std.log.debug("{X} -> {X}\n", .{ check, check });
+        if (byte & 0x80 == 0x80) {
+            return @as(FieldType, @enumFromInt(byte & 0xF));
+        } else {
+            return @as(FieldType, @enumFromInt(byte));
         }
-        std.debug.print("{any}\n", .{data[i]});
     }
-    return Field{};
+};
+
+const TextStyles = packed struct(u8) {
+    normal: bool = false,
+    underline: bool = false,
+    bold: bool = false,
+    italic: bool = false,
+    _padding: enum(u4) { unset } = .unset,
+};
+
+const Baseline = packed struct(u8) {
+    normalBackground: bool = false,
+    sub: bool = false,
+    subBackground: bool = false,
+    super: bool = false,
+    superBackground: bool = false,
+    _padding: enum(u3) { unset } = .unset,
+};
+
+const TextCharacter = struct {
+    char: u8 = 0,
+    style: TextStyles = TextStyles{},
+    baseline: Baseline = Baseline{},
+};
+
+const Field = struct {
+    fieldType: FieldType = FieldType.Text,
+    fieldStyle: TextStyles = TextStyles{},
+    name: std.ArrayList(TextCharacter) = undefined,
+
+    pub fn print(self: *@This()) void {
+        std.log.debug("Field: ", .{});
+
+        for (self.name.items) |char| {
+            std.log.debug("{c}", .{char.char});
+        }
+        std.log.debug(" : {s} ({any})\n", .{ @tagName(self.fieldType), self.fieldStyle });
+    }
+
+    pub fn deinit(self: *@This()) void {
+        self.name.deinit();
+    }
+};
+
+fn decodeField(self: *FCF, bytes: []const u8, size: usize) !Field {
+    return Field{
+        .fieldType = FieldType.decode(bytes[0]),
+        .fieldStyle = @as(TextStyles, @bitCast(bytes[1] & 0xF)),
+        .name = try self.decodeText(bytes[2..], size),
+    };
 }
+
+fn decodeText(self: *FCF, bytes: []const u8, size: usize) !std.ArrayList(TextCharacter) {
+    var idx: usize = 0;
+    _ = size;
+
+    var string = std.ArrayList(TextCharacter).init(self.allocator);
+    errdefer string.deinit();
+
+    while (idx < bytes.len - 1) {
+        var newChar = TextCharacter{};
+
+        if (bytes[idx] & 0x80 == 0x80) {
+            if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
+
+            if (bytes[idx + 1] & 0xD0 == 0xD0) {
+                newChar.baseline = @as(Baseline, @bitCast(bytes[idx + 2] & 0xF));
+                try string.append(newChar);
+                idx += 3;
+            } else {
+                newChar.style = @as(TextStyles, @bitCast(bytes[idx + 1] & 0xF));
+                try string.append(newChar);
+                idx += 2;
+            }
+        } else {
+            newChar.char = bytes[0];
+            try string.append(newChar);
+            idx += 1;
+        }
+    }
+
+    // std.log.info("String: {any}", .{string});
+    return string;
+}
+
 const Form = struct {
-    fields: []Field,
-    numBlocks: u16,
-    lines: u16,
-    length: u16,
-    data: Field,
+    fields: std.ArrayList(Field) = undefined,
+    numBlocks: u16 = 0,
+    lines: u16 = 0,
+    length: u16 = 0,
+
+    pub fn deinit(self: *@This()) void {
+        for (self.fields.items) |*f| {
+            f.deinit();
+        }
+        self.fields.deinit();
+    }
+
+    pub fn print(self: *@This()) void {
+        const fmt =
+            \\
+            \\Form Length: {}
+            \\Form Block Length: {}
+            \\Form Lines: {}
+            \\Form Fields: {}
+            \\
+        ;
+        std.log.debug(fmt, .{ self.length, self.numBlocks, self.lines, self.fields.items.len });
+    }
 };
 
 fn readForm(self: *FCF, b: Block) !Form {
-    return Form{
-        .fields = &[_]Field{},
+    var form = Form{
         .numBlocks = std.mem.readInt(u16, b.data[0..2], Endien.Little),
         .lines = std.mem.readInt(u16, b.data[2..4], Endien.Big),
         .length = std.mem.readInt(u16, b.data[4..6], Endien.Big),
-        .data = try self.readFields(b.data[6..]),
     };
+
+    var fields = std.ArrayList(Field).init(self.allocator);
+    var tok = std.mem.tokenizeAny(u8, b.data[6..], "\x0d");
+
+    while (tok.next()) |t| {
+        const num = std.mem.readIntSliceBig(u16, t[0..2]);
+        // const textBytes = t[2..];
+        var strippedBytes = try self.allocator.alloc(u8, t.len - 2);
+        defer self.allocator.free(strippedBytes);
+
+        var f = try self.decodeField(t, num);
+
+        try fields.append(f);
+    }
+    form.fields = fields;
+    return form;
 }
 
 fn parseBlocks(self: *FCF) !void {
     for (self.blocks.?.items) |b| {
         switch (b.recordType) {
             .FormDescriptionView => {
-                const form = self.readForm(b);
-                std.debug.print("{any}\n", .{form});
+                self.form = try self.readForm(b);
             },
             else => {},
         }
@@ -244,6 +333,7 @@ fn parseBlocks(self: *FCF) !void {
 pub fn deinit(self: *FCF) void {
     self.allocator.free(self.buffer.?);
     self.blocks.?.deinit();
+    self.form.?.deinit();
     self.empties.?.deinit();
     self.* = undefined;
 }
@@ -256,4 +346,6 @@ test "Read header" {
 
     try fol.open("RESERVE.FOL");
     try fol.parseBlocks();
+
+    fol.form.?.print();
 }
