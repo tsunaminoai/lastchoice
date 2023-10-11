@@ -3,7 +3,7 @@ const FCF = @import("firstzig");
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    defer std.debug.assert(gpa.deinit() == .ok);
 
     var alloc = gpa.allocator();
 
@@ -11,4 +11,7 @@ pub fn main() anyerror!void {
     defer f.deinit();
 
     try f.open("RESERVE.FOL");
+
+    std.log.debug("End", .{});
+    return;
 }

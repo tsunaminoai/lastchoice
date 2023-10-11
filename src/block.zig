@@ -4,6 +4,8 @@ const FCF = @import("fcf.zig");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
+const BLOCK_SIZE = 128;
+
 pub const Error = error{
     InvalidBlockType,
 };
@@ -54,16 +56,28 @@ pub const BlockIndex = enum(u16) {
     _,
 };
 
-pub fn readBlocks(numBlocks: usize, buffer: []u8, alloc: Allocator) !ArrayList(Block) {
+pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     var blockList = ArrayList(Block).init(alloc);
     errdefer blockList.deinit();
 
-    var blocks = std.mem.window(u8, buffer, numBlocks, @sizeOf(Block));
+    var blocks = std.mem.window(u8, buffer, BLOCK_SIZE, BLOCK_SIZE);
+    var i: usize = 0;
     outer: while (blocks.next()) |*block| {
-        std.log.debug("{any}\n", .{block});
-        const blockTag = BlockTypeInt.fromSlice(block.ptr[0..2]) catch |err| {
+        std.log.debug(
+            "Reading block {}/{} sizeofblock: {}\n",
+            .{ i + 1, buffer.len / BLOCK_SIZE, BLOCK_SIZE },
+        );
+        const blockTag = BlockTypeInt.fromInt(block.ptr[0]) catch |err| {
             if (err == Error.InvalidBlockType) {
-                std.log.warn("Unknown blocktype: 0x{s}", .{std.fmt.bytesToHex(block.ptr[0..2], .upper)});
+                if (i != 0) std.log.warn(
+                    "Unknown blocktype: 0x{s}",
+                    .{std.fmt.bytesToHex(
+                        block.ptr[0..2],
+                        .upper,
+                    )},
+                );
+                i += 1;
+
                 continue :outer;
             } else return err;
         };
@@ -71,10 +85,12 @@ pub fn readBlocks(numBlocks: usize, buffer: []u8, alloc: Allocator) !ArrayList(B
             .recordType = blockTag,
             .data = undefined,
         };
-        var data = try alloc.alloc(u8, 126);
-        std.mem.copy(u8, data, block.ptr[2..128]);
+        var data = try alloc.alloc(u8, BLOCK_SIZE - 2);
+        std.mem.copy(u8, data, block.ptr[2..BLOCK_SIZE]);
+
         newBlock.data = data;
         try blockList.append(newBlock);
+        i += 1;
     }
 
     return blockList;

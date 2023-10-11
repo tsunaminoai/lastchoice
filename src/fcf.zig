@@ -41,9 +41,8 @@ pub fn deinit(self: *FCF) void {
         b.deinit(self.allocator);
     }
     self.blocks.deinit();
-    self.form.deinit();
-    self.empties.deinit();
-    self.* = undefined;
+    // self.form.deinit();
+    // self.empties.deinit();
 }
 
 pub fn open(self: *FCF, fileName: []const u8) Error!void {
@@ -56,11 +55,13 @@ pub fn open(self: *FCF, fileName: []const u8) Error!void {
     self.head.print();
 
     // self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.totalFileBlocks);
-    self.blocks = try Block.readBlocks(self.head.totalFileBlocks, self.buffer, self.allocator);
+    self.blocks = try Block.readBlocks(self.buffer, self.allocator);
 
-    self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
-    try self.readEmpties();
+    std.log.debug("Read {} blocks", .{self.blocks.capacity});
+    // self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
+    // try self.readEmpties();
     // try self.read();
+
 }
 
 fn readEmpties(self: *FCF) Error!void {
