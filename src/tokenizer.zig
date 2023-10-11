@@ -75,7 +75,7 @@ fn decodeText(bytes: []const u8, size: usize, alloc: std.mem.Allocator) !std.Arr
         var newChar = TextCharacter{};
 
         if (bytes[idx] & 0x80 == 0x80) {
-            newChar.char = bytes[idx] & 0x7F;
+            if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
 
             if (bytes[idx + 1] & 0xD0 == 0xD0) {
                 newChar.baseline = @as(Baseline, @bitCast(bytes[idx + 2] & 0xF));
