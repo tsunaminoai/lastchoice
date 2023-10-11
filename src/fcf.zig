@@ -1,26 +1,28 @@
 const std = @import("std");
 const Header = @import("header.zig").Header;
+pub usingnamespace @import("block.zig");
 const Block = @import("block.zig");
 const Empty = @import("block.zig").Empty;
 const Form = @import("form.zig");
+
 const Allocator = std.mem.Allocator;
 
 const Endien = std.builtin.Endian;
 const bigToNative = std.mem.bigToNative;
 const nativeToBig = std.mem.nativeToBig;
 
-buffer: ?[]u8 = null,
+buffer: []u8 = undefined,
 index: usize = 0,
-head: ?Header = null,
+head: Header = undefined,
 allocator: Allocator,
-blocks: ?std.ArrayList(Block) = null,
-empties: ?std.ArrayList(Empty) = null,
-form: ?Form = null,
+blocks: std.ArrayList(Block.Block) = undefined,
+empties: std.ArrayList(Block.Empty) = undefined,
+form: Form = undefined,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
 
-const FCF = @This(); //FirstChoice File
+pub const FCF = @This(); //FirstChoice File
 
 pub const Error = error{ EndOfStream, UnhandledBlockType, BadTextCharacter } || anyerror;
 
@@ -34,10 +36,10 @@ pub fn init(allocator: Allocator) FCF {
 }
 
 pub fn deinit(self: *FCF) void {
-    self.allocator.free(self.buffer.?);
-    self.blocks.?.deinit();
-    self.form.?.deinit();
-    self.empties.?.deinit();
+    self.allocator.free(self.buffer);
+    self.blocks.deinit();
+    self.form.deinit();
+    self.empties.deinit();
     self.* = undefined;
 }
 
@@ -49,60 +51,53 @@ pub fn open(
     defer file.close();
 
     self.buffer = try file.readToEndAlloc(self.allocator, 4 * 1024 * 1024);
-    self.head = try self.readStruct(Header);
+    std.log.debug("Loaded {} bytes\n", .{self.buffer.len});
+    self.head = Header.fromBytes(self.buffer[0..128]);
+    self.head.print();
 
-    std.log.debug("Loaded {} bytes\n", .{self.buffer.?.len});
-    const fmt =
-        \\
-        \\Form Index: {}
-        \\Last Block: {}
-        \\Total Blocks: {}
-        \\Data Records: {}
-        \\Available Fields: {}
-        \\Form Length: {}
-        \\Form Revisions: {}
-        \\Empties Length: {}
-        \\Table Index: {}
-        \\Program Index: {}
-        \\Next Field Size: {}
-        \\@DISKVAR: "{s}"
-        \\
-    ;
-    if (self.head) |head| {
-        std.log.debug(fmt, .{ head.formDefinitionIndex, head.lastUsedBlock, head.totalFileBlocks, head.dataRecords, head.availableDBFields, head.formLength, head.formRevisions, head.emptiesLength, head.tableViewIndex, head.programRecordIndex, head.nextFieldSize, head.diskVar });
-    }
-    self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.?.totalFileBlocks);
-    self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.?.totalFileBlocks);
+    // self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.totalFileBlocks);
+    self.blocks = try Block.readBlocks(self.head.totalFileBlocks, self.buffer, self.allocator);
+
+    self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
     try self.readEmpties();
-    try self.read();
+    // try self.read();
 }
 
 fn readEmpties(self: *FCF) Error!void {
     // move to the fifth block
     self.index = @sizeOf(Block) * 4;
-    for (0..self.head.?.emptiesLength) |_| {
-        try self.empties.?.append(try self.readStruct(Empty));
+    for (0..self.head.emptiesLength) |_| {
+        try self.empties.append(try self.readStruct(Empty));
     }
 }
 
 fn read(self: *FCF) Error!void {
-    self.index = @sizeOf(Block) * self.head.?.formDefinitionIndex;
+    std.log.debug("<read>", .{});
+
+    self.index = @sizeOf(Block) * self.head.formDefinitionIndex;
 
     while (try Block.peekBlock(self)) |blockType| {
         switch (blockType) {
-            .FormDescriptionView => try self.blocks.?.append(try self.readStruct(Block)),
-            else => try self.blocks.?.append(try self.readStruct(Block)),
+            .FormDescriptionView => try self.blocks.append(try self.readStruct(Block)),
+            else => try self.blocks.append(try self.readStruct(Block)),
         }
+
+        break;
     }
+    std.log.debug("</read>", .{});
 }
 
 fn readStruct(self: *FCF, comptime T: type) Error!T {
+    std.log.debug("<readStruct>", .{});
+
     const fields = std.meta.fields(T);
 
     var item: T = undefined;
     inline for (fields) |field| {
         @field(item, field.name) = try self.readStructField(field.type);
     }
+    std.log.debug("</readStruct>", .{});
+
     return item;
 }
 fn readStructField(self: *FCF, comptime T: type) Error!T {
@@ -123,9 +118,9 @@ fn readStructField(self: *FCF, comptime T: type) Error!T {
 
 fn readInt(self: *FCF, comptime T: type) Error!T {
     const size = @sizeOf(T);
-    if (self.index + size > self.buffer.?.len) return Error.EndOfStream;
+    if (self.index + size > self.buffer.len) return Error.EndOfStream;
 
-    const slice = self.buffer.?[self.index .. self.index + size];
+    const slice = self.buffer[self.index .. self.index + size];
     const value = @as(*align(1) const T, @ptrCast(slice)).*;
     self.index += size;
     return value;
@@ -138,7 +133,7 @@ test "Read header" {
     defer fol.deinit();
 
     try fol.open("RESERVE.FOL");
-    try fol.parseBlocks();
+    // try fol.parseBlocks();
 
-    fol.form.?.print();
+    fol.form.print();
 }

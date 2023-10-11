@@ -32,6 +32,7 @@ const Form = struct {
 };
 
 fn readForm(self: *FCF, b: Block) !Form {
+    std.log.debug("<readForm>", .{});
     var form = Form{
         .numBlocks = std.mem.readInt(u16, b.data[0..2], Endien.Little),
         .lines = std.mem.readInt(u16, b.data[2..4], Endien.Big),
@@ -52,5 +53,7 @@ fn readForm(self: *FCF, b: Block) !Form {
         try fields.append(f);
     }
     form.fields = fields;
+    std.log.debug("</readForm>", .{});
+
     return form;
 }
