@@ -52,7 +52,7 @@ const Field = struct {
         for (self.name.items) |char| {
             std.debug.print("{c}", .{char.char});
         }
-        std.debug.print("\n", .{});
+        std.debug.print(" : {s} ({any})\n", .{ @tagName(self.fieldType), self.fieldStyle });
     }
 };
 
