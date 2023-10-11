@@ -60,12 +60,12 @@ pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     var blockList = ArrayList(Block).init(alloc);
     errdefer blockList.deinit();
 
-    var blocks = std.mem.window(u8, buffer, BLOCK_SIZE, BLOCK_SIZE);
+    var blocks = std.mem.window(u8, buffer[BLOCK_SIZE..], BLOCK_SIZE, BLOCK_SIZE);
     var i: usize = 0;
     outer: while (blocks.next()) |*block| {
         std.log.debug(
-            "Reading block {}/{} sizeofblock: {}\n",
-            .{ i + 1, buffer.len / BLOCK_SIZE, BLOCK_SIZE },
+            "Reading block {}/{}",
+            .{ i + 1, (buffer.len - BLOCK_SIZE) / BLOCK_SIZE },
         );
         const blockTag = BlockTypeInt.fromInt(block.ptr[0]) catch |err| {
             if (err == Error.InvalidBlockType) {
