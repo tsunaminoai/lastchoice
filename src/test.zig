@@ -165,17 +165,20 @@ pub fn main() anyerror!void {
                         },
                         0x81, 0x8F => {
                             //normal text but with attrs
+                            newChar.character = c & 0x7F;
                             newChar.setAtttributes(byte2);
                             j += 2;
                         },
                         0x90, 0x9F => {
-                            std.log.debug("Two byte: char:{c} stripped: {c}\n", .{ c, newChar.character });
+                            std.log.debug("Two byte: 0x{X} char:{c} stripped: {c}, Valid tag? '{}'\n", .{ c, c, newChar.character, FieldTypeTag.isValid(c) });
                             if (FieldTypeTag.isValid(c)) {
                                 var tag = @as(FieldTypeTag, @enumFromInt(c));
                                 std.log.info("Field Type: {s}\n", .{@tagName(tag)});
+                                //todo: do something with the tag
+                            } else {
+                                //field names
+                                newChar.setAtttributes(byte2);
                             }
-                            //field names
-                            newChar.setAtttributes(byte2);
 
                             j += 2;
                         },
@@ -187,9 +190,13 @@ pub fn main() anyerror!void {
 
                             j += 3;
                         },
+                        0x0D => {
+                            newChar.character = '\n';
+                            j += 2;
+                        },
                         else => |x| {
                             //todo
-                            std.log.warn("Found a weird byte: {X}: '{c}'", .{ x, x });
+                            std.log.warn("Found a weird byte2 at position {}: 0x{X} '{c}'", .{ i + j + 1, x, x });
                             j += 2;
                         },
                     }
@@ -230,11 +237,16 @@ pub fn main() anyerror!void {
 }
 
 const FieldTypeTag = enum(u8) {
-    General = ' ',
-    Numeric = 'N',
-    Date = 'D',
-    Time = 'T',
-    Bool = 'Y',
+    // General = ' ',
+    // Numeric = 'N',
+    // Date = 'D',
+    // Time = 'T',
+    // Bool = 'Y',
+    Text = 0x81,
+    Numeric = 0x82,
+    Date = 0x83,
+    Time = 0x84,
+    Bool = 0x85,
 
     pub fn isValid(char: u8) bool {
         const fields = comptime @typeInfo(FieldTypeTag).Enum.fields;
@@ -246,8 +258,8 @@ const FieldTypeTag = enum(u8) {
 };
 
 test "fieldtype" {
-    try std.testing.expect(FieldTypeTag.isValid('N') == true);
-    try std.testing.expect(FieldTypeTag.isValid('A') == false);
+    try std.testing.expect(FieldTypeTag.isValid(0x81) == true);
+    try std.testing.expect(FieldTypeTag.isValid(0x65) == false);
 }
 
 const ScriptState = enum { Normal, Super, Sub };
