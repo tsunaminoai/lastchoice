@@ -4,7 +4,7 @@
     {
       "label": "build",
       "type": "shell",
-      "command": "zig build test",
+      "command": "zig build run",
       "problemMatcher": [],
       "group": {
         "kind": "build",

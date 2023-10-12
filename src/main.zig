@@ -10,7 +10,7 @@ pub fn main() anyerror!void {
     var f = FCF.init(alloc);
     defer f.deinit();
 
-    try f.open("RESERVE.FOL");
+    try f.open("ALUMNI.FOL");
 
     f.form.print();
     std.log.debug("End", .{});

@@ -64,6 +64,7 @@ pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
         );
         const blockTag = BlockTypeInt.fromInt(block.ptr[0]) catch |err| {
             if (err == Error.InvalidBlockType) {
+                std.log.debug("Skipping block {}", .{i});
                 if (i != 0) std.log.warn(
                     "Unknown blocktype: 0x{s}",
                     .{std.fmt.bytesToHex(
