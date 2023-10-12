@@ -12,6 +12,11 @@ pub const Form = struct {
     lines: u16 = 0,
     length: u16 = 0,
 
+    pub fn init(alloc: std.mem.Allocator) !Form {
+        return Form{
+            .fields = std.ArrayList(Field.Field).init(alloc),
+        };
+    }
     pub fn deinit(self: *@This()) void {
         for (self.fields.items) |*f| {
             f.deinit();
@@ -78,20 +83,48 @@ fn readForm(b: Block.Block, alloc: std.mem.Allocator) !Form {
     return form;
 }
 
-pub fn parseFormBlocks(blocks: std.ArrayList(Block.Block), header: Header.Header, alloc: std.mem.Allocator) !void {
+fn decodeFormData(form: *Form, data: []u8, alloc: std.mem.Allocator) !void {
+    std.log.debug("<decodeFormData>", .{});
+
+    var tok = std.mem.tokenizeAny(u8, data, "\x0d");
+
+    while (tok.next()) |t| {
+        const num = std.mem.readIntSliceBig(u16, t[0..2]);
+
+        var f = try Field.decodeField(t, num, alloc);
+
+        try form.fields.append(f);
+    }
+    std.log.debug("</decodeFormData>", .{});
+}
+
+pub fn parseFormBlocks(blocks: std.ArrayList(Block.Block), header: Header.Header, alloc: std.mem.Allocator) !Form {
+    std.log.debug("<parseFormBlocks>", .{});
     var formData: []u8 = try alloc.alloc(u8, header.formLength);
     defer alloc.free(formData);
+
+    var form = try Form.init(alloc);
 
     var idx: usize = 0;
     for (blocks.items[header.formDefinitionIndex..]) |b| {
         switch (b.recordType) {
-            .FormDescriptionView, .FormDescriptionContinuation => {
-                var f = try readForm(b, alloc);
-                defer f.deinit();
-                std.log.debug("{any}", .{f});
+            .FormDescriptionView => {
+                form = .{
+                    .numBlocks = std.mem.readInt(u16, b.data[0..2], Endien.Little),
+                    .lines = std.mem.readInt(u16, b.data[2..4], Endien.Big),
+                    .length = std.mem.readInt(u16, b.data[4..6], Endien.Big),
+                };
+
+                std.mem.copy(u8, formData.ptr[idx..b.data.len], b.data);
+            },
+            .FormDescriptionContinuation => {
                 std.mem.copy(u8, formData.ptr[idx..b.data.len], b.data);
             },
             else => {},
         }
     }
+    try decodeFormData(&form, formData, alloc);
+    std.log.debug("</parseFormBlocks>", .{});
+
+    return form;
 }

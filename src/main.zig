@@ -12,6 +12,7 @@ pub fn main() anyerror!void {
 
     try f.open("RESERVE.FOL");
 
+    f.form.print();
     std.log.debug("End", .{});
     return;
 }

@@ -11,7 +11,7 @@ const FieldType = enum(u8) {
     _,
     pub fn decode(byte: u8) FieldType {
         const check = byte & 0xF;
-        std.log.debug("{X} -> {X}\n", .{ check, check });
+        std.log.debug("Decode {X} -> {X}\n", .{ check, check & 0xF });
         if (byte & 0x80 == 0x80) {
             return @as(FieldType, @enumFromInt(byte & 0xF));
         } else {

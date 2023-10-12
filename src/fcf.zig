@@ -41,7 +41,7 @@ pub fn deinit(self: *FCF) void {
         b.deinit(self.allocator);
     }
     self.blocks.deinit();
-    // self.form.deinit();
+    self.form.deinit();
     // self.empties.deinit();
 }
 
@@ -58,8 +58,7 @@ pub fn open(self: *FCF, fileName: []const u8) Error!void {
     self.blocks = try Block.readBlocks(self.buffer, self.allocator);
     std.debug.assert(self.blocks.items.len == self.head.totalFileBlocks);
     std.log.debug("Read {} blocks", .{self.blocks.items.len});
-    try Form.parseFormBlocks(self.blocks, self.head, self.allocator);
-
+    self.form = try Form.parseFormBlocks(self.blocks, self.head, self.allocator);
     // self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
     // try self.readEmpties();
     // try self.read();

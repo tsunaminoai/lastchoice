@@ -25,6 +25,7 @@ pub const TextCharacter = struct {
 };
 
 pub fn decodeText(bytes: []const u8, size: usize, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
+    std.log.debug("<decodeText>", .{});
     var idx: usize = 0;
     _ = size;
 
@@ -53,6 +54,6 @@ pub fn decodeText(bytes: []const u8, size: usize, alloc: std.mem.Allocator) !std
         }
     }
 
-    // std.log.info("String: {any}", .{string});
+    std.log.debug("</decodeText>", .{});
     return string;
 }
