@@ -30,6 +30,25 @@ pub const Form = struct {
         ;
         std.log.debug(fmt, .{ self.length, self.numBlocks, self.lines, self.fields.items.len });
     }
+
+    pub fn format(
+        self: @This(),
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = options;
+        _ = fmt;
+        const stringFormat =
+            \\
+            \\Form Length: {}
+            \\Form Block Length: {}
+            \\Form Lines: {}
+            \\Form Fields: {}
+            \\
+        ;
+        return std.fmt.format(writer, stringFormat, .{ self.length, self.numBlocks, self.lines, self.fields.items.len });
+    }
 };
 
 fn readForm(b: Block.Block, alloc: std.mem.Allocator) !Form {
