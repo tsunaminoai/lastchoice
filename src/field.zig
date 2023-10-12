@@ -39,10 +39,10 @@ pub const Field = struct {
     }
 };
 
-fn decodeField(self: *FCF, bytes: []const u8, size: usize) !Field {
+pub fn decodeField(bytes: []const u8, size: usize, alloc: std.mem.Allocator) !Field {
     return Field{
         .fieldType = FieldType.decode(bytes[0]),
         .fieldStyle = @as(Text.TextStyles, @bitCast(bytes[1] & 0xF)),
-        .name = try self.decodeText(bytes[2..], size),
+        .name = try Text.decodeText(bytes[2..], size, alloc),
     };
 }

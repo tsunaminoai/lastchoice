@@ -24,11 +24,11 @@ pub const TextCharacter = struct {
     baseline: Baseline = Baseline{},
 };
 
-pub fn decodeText(self: *FCF, bytes: []const u8, size: usize) !std.ArrayList(TextCharacter) {
+pub fn decodeText(bytes: []const u8, size: usize, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
     var idx: usize = 0;
     _ = size;
 
-    var string = std.ArrayList(TextCharacter).init(self.allocator);
+    var string = std.ArrayList(TextCharacter).init(alloc);
     errdefer string.deinit();
 
     while (idx < bytes.len - 1) {

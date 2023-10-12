@@ -51,11 +51,6 @@ pub const Empty = extern struct {
     entry2: u16 = 0,
 };
 
-pub const BlockIndex = enum(u16) {
-    None = 0xFFFF,
-    _,
-};
-
 pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     var blockList = ArrayList(Block).init(alloc);
     errdefer blockList.deinit();
@@ -96,14 +91,14 @@ pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     return blockList;
 }
 
-pub fn parseBlocks(self: *FCF) !void {
+pub fn parseBlocks(blocks: std.ArrayList(Block)) !void {
     std.log.debug("<parseBlocks>", .{});
-    for (self.blocks.?.items) |b| {
+    for (blocks.items) |b| {
         switch (b.recordType) {
-            .FormDescriptionView => {
-                self.form = try self.readForm(b);
+            .Empty => continue,
+            else => {
+                std.log.warn("Unknown block type: {s}", .{@tagName(b.recordType)});
             },
-            else => {},
         }
     }
     std.log.debug("</parseBlocks>", .{});

@@ -13,8 +13,8 @@ pub const Header = extern struct {
     formRevisions: u16, // 1 indexed
     _1: u16,
     emptiesLength: u16,
-    tableViewIndex: Block.BlockIndex,
-    programRecordIndex: Block.BlockIndex,
+    tableViewIndex: u16,
+    programRecordIndex: u16,
     _2: u16,
     _3: u16,
     nextFieldSize: u8,
@@ -54,6 +54,7 @@ pub const Header = extern struct {
     }
 
     pub fn fromBytes(raw: *[128]u8) Header {
-        return std.mem.bytesToValue(Header, raw);
+        var head = std.mem.bytesToValue(Header, raw);
+        return head;
     }
 };
