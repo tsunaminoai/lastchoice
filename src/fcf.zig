@@ -51,7 +51,6 @@ pub fn open(self: *FCF, fileName: []const u8) Error!void {
     self.buffer = try file.readToEndAlloc(self.allocator, 4 * 1024 * 1024);
     std.log.debug("Loaded {} bytes\n", .{self.buffer.len});
     self.head = Header.fromBytes(self.buffer[0..128]);
-    self.head.print();
 
     // self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.totalFileBlocks);
     self.blocks = try Block.readBlocks(self.buffer, self.allocator);
