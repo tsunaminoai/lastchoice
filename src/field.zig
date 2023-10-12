@@ -56,19 +56,74 @@ pub const Field = struct {
     }
 };
 
-pub fn decodeField(bytes: []const u8, alloc: std.mem.Allocator) !Field {
+pub fn decodeFields(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Field) {
     var fType: FieldType = FieldType.Text;
-    if (FieldType.decode(bytes[0])) |f| {
-        fType = f;
-    } else |err| {
-        if (err == Error.InvalidFieldType) {
-            std.log.warn("Invalid Field Type Byte: {X}", .{bytes[0]});
-            return err;
-        }
+    var fieldReadLen = std.mem.readIntSliceBig(u16, bytes[0..2]);
+    var fieldList = std.ArrayList(Field).init(alloc);
+    errdefer fieldList.deinit();
+
+    var idx: usize = 0;
+
+    while (idx < bytes.len) {
+        // convert fron len in u16 to u8
+        var fieldLen = std.mem.readIntSliceBig(u16, bytes[idx .. idx + 2]) / 2;
+        idx += 2;
+        var fieldBytes = bytes[idx .. idx + fieldLen];
+        var text = try Text.decodeText(fieldBytes, alloc);
+        errdefer text.deinit();
+
+        var field = Field{
+            .fieldType = fType,
+            .fieldStyle = @as(Text.TextStyles, @bitCast(fieldBytes[2] & 0xF)),
+            .name = text,
+        };
+        try fieldList.append(field);
+        idx += fieldReadLen;
     }
-    return Field{
-        .fieldType = fType,
-        .fieldStyle = @as(Text.TextStyles, @bitCast(bytes[1] & 0xF)),
-        .name = try Text.decodeText(bytes[2..], alloc),
+
+    return fieldList;
+}
+
+test "Field" {
+    var alloc = std.testing.allocator;
+
+    // this is for the whole form
+    // const bytes = [_]u8{ 0x82, 0x00, 0x04, 0x00, 0x01, 0xD0, 0x00, 0x0E, 0x00, 0x32, 0xC6, 0x90, 0xE9, 0x90, 0xF2, 0x90, 0xF3, 0x90, 0xF4, 0x90, 0x80, 0x90, 0xEE, 0x90, 0xE1, 0x90, 0xED, 0x90, 0xE5, 0x90, 0x81, 0x90, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x18, 0xCC, 0x90, 0xE1, 0x90, 0xF3, 0x90, 0xF4, 0x90, 0x80, 0x90, 0xEE, 0x90, 0xE1, 0x90, 0xED, 0x90, 0xE5, 0x90, 0x81, 0x90, 0x0D, 0x0D, 0x00, 0x14, 0xC1, 0x90, 0xE4, 0x90, 0xE4, 0x90, 0xF2, 0x90, 0xE5, 0x90, 0xF3, 0x90, 0xF3, 0x90, 0x81, 0x90, 0x0D, 0x0D, 0x00, 0x2C, 0xC3, 0x90, 0xE9, 0x90, 0xF4, 0x90, 0xF9, 0x90, 0x81, 0x90, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20 };
+
+    const fieldBytes = [_]u8{
+        0x00, 0x32, 0xC6, 0x90,
+        0xE9, 0x90, 0xF2, 0x90,
+        0xF3, 0x90, 0xF4, 0x90,
+        0x80, 0x90, 0xEE, 0x90,
+        0xE1, 0x90, 0xED, 0x90,
+        0xE5, 0x90, 0x81, 0x90,
+        0x20, 0x20, 0x20, 0x20,
+        0x20, 0x20, 0x20, 0x20,
+        0x20, 0x20, 0x20, 0x20,
+        0x20, 0x20, 0x20, 0x20,
+        0x20, 0x20, 0x20, 0x20,
+        0x20, 0x20, 0x20, 0x20,
+        0x20, 0x20, 0x20, 0x20,
     };
+    var fields = try decodeFields(&fieldBytes, alloc);
+    defer {
+        for (fields.items) |*field| {
+            field.deinit();
+        }
+        fields.deinit();
+    }
+
+    var field = fields.items[0];
+
+    // std.debug.print("\n{any}\n", .{field});
+
+    try std.testing.expect(field.fieldType == FieldType.Text);
+    try std.testing.expect(field.fieldStyle.bold == false);
+    // std.debug.print("Length: {d}\n", .{field.name.items.len});
+    try std.testing.expect(field.name.items.len == 13);
+    try std.testing.expect(field.name.items[0].char == 'F');
+    try std.testing.expect(field.name.items[1].char == 'i');
+    try std.testing.expect(field.name.items[2].char == 'r');
+    try std.testing.expect(field.name.items[3].char == 's');
+    try std.testing.expect(field.name.items[4].char == 't');
 }

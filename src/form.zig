@@ -13,9 +13,8 @@ pub const Form = struct {
     length: u16 = 0,
 
     pub fn init(alloc: std.mem.Allocator) !Form {
-        return Form{
-            .fields = std.ArrayList(Field.Field).init(alloc),
-        };
+        _ = alloc;
+        return Form{};
     }
     pub fn deinit(self: *@This()) void {
         for (self.fields.items) |*f| {
@@ -96,7 +95,9 @@ pub fn parseFormBlocks(blocks: std.ArrayList(Block.Block), header: Header.Header
             else => {},
         }
     }
-    try decodeFormData(&form, formData, alloc);
+    form.fields = try Field.decodeFields(formData, alloc);
+    errdefer form.deinit();
+
     std.log.debug("</parseFormBlocks>", .{});
 
     return form;

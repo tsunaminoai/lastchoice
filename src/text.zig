@@ -71,7 +71,7 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
                 idx += 2;
             }
         } else {
-            newChar.char = bytes[0];
+            newChar.char = if (bytes[idx] == 0x0D) ' ' else bytes[idx];
             try string.append(newChar);
             idx += 1;
         }
