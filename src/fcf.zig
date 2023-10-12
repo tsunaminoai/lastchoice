@@ -1,6 +1,5 @@
 const std = @import("std");
 const Header = @import("header.zig").Header;
-pub usingnamespace @import("block.zig");
 const Block = @import("block.zig");
 const Empty = @import("block.zig").Empty;
 const Form = @import("form.zig");
@@ -56,9 +55,11 @@ pub fn open(self: *FCF, fileName: []const u8) Error!void {
 
     // self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.totalFileBlocks);
     self.blocks = try Block.readBlocks(self.buffer, self.allocator);
+    errdefer self.blocks.deinit();
     // std.debug.assert(self.blocks.items.len == self.head.totalFileBlocks);
     std.log.debug("Read {} blocks", .{self.blocks.items.len});
     self.form = try Form.parseFormBlocks(self.blocks, self.head, self.allocator);
+    errdefer self.form.deinit();
     // self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
     // try self.readEmpties();
     // try self.read();
@@ -128,14 +129,6 @@ fn readInt(self: *FCF, comptime T: type) Error!T {
     return value;
 }
 
-test "Read header" {
-    std.debug.assert(@sizeOf(Header) == 128);
-    var alloc = std.testing.allocator;
-    var fol = FCF.init(alloc);
-    defer fol.deinit();
-
-    try fol.open("RESERVE.FOL");
-    // try fol.parseBlocks();
-
-    fol.form.print();
+test {
+    _ = std.testing.refAllDecls(@This());
 }

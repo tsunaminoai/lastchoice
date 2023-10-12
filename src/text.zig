@@ -1,6 +1,8 @@
 const std = @import("std");
 const FCF = @import("fcf.zig");
 
+const expect = std.testing.expect;
+/// TextStyles is a packed struct that represents the various styles that can be applied to a character.
 pub const TextStyles = packed struct(u8) {
     normal: bool = false,
     underline: bool = false,
@@ -9,6 +11,7 @@ pub const TextStyles = packed struct(u8) {
     _padding: enum(u4) { unset } = .unset,
 };
 
+// Baseline is a packed struct that represents the various baselines that can be applied to a character.
 pub const Baseline = packed struct(u8) {
     normalBackground: bool = false,
     sub: bool = false,
@@ -18,16 +21,36 @@ pub const Baseline = packed struct(u8) {
     _padding: enum(u3) { unset } = .unset,
 };
 
+/// TextCharacter is a struct that represents a single character in a text string.  It contains the character itself, as well as the styles and baselines that should be applied to it.
 pub const TextCharacter = struct {
     char: u8 = 0,
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
+
+    pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = options;
+        _ = fmt;
+
+        return std.fmt.format(writer, "{c}", .{self.char});
+    }
 };
 
-pub fn decodeText(bytes: []const u8, size: usize, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
+test "TextCharacter" {
+    var char = TextCharacter{ .char = 'a' };
+    var expected: u8 = 'a';
+    var actual = char.char;
+
+    try expect(expected == actual);
+}
+
+/// DecodeText takes a byte array and decodes it into a list of TextCharacters.
+/// It does this by iterating over the bytes, and if the first bit is set, it
+/// will read the next byte(s) as a style or baseline.
+///
+/// Callers are responsible for freeing the returned list.
+pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
     std.log.debug("<decodeText>", .{});
     var idx: usize = 0;
-    _ = size;
 
     var string = std.ArrayList(TextCharacter).init(alloc);
     errdefer string.deinit();

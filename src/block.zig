@@ -8,7 +8,7 @@ const BLOCK_SIZE = 128;
 
 pub const Error = error{
     InvalidBlockType,
-};
+} || std.mem.Allocator.Error;
 
 pub const BlockTypeInt = enum(u16) {
     Empty = 0x0,

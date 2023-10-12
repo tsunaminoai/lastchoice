@@ -49,49 +49,21 @@ pub const Form = struct {
             \\Form Length: {}
             \\Form Block Length: {}
             \\Form Lines: {}
-            \\Form Fields: {}
+            \\Form Fields: {any}
             \\
         ;
-        return std.fmt.format(writer, stringFormat, .{ self.length, self.numBlocks, self.lines, self.fields.items.len });
+        return std.fmt.format(writer, stringFormat, .{ self.length, self.numBlocks, self.lines, self.fields });
     }
 };
-
-fn readForm(b: Block.Block, alloc: std.mem.Allocator) !Form {
-    std.log.debug("<readForm>", .{});
-    var form = Form{
-        .numBlocks = std.mem.readInt(u16, b.data[0..2], Endien.Little),
-        .lines = std.mem.readInt(u16, b.data[2..4], Endien.Big),
-        .length = std.mem.readInt(u16, b.data[4..6], Endien.Big),
-    };
-
-    var fields = std.ArrayList(Field.Field).init(alloc);
-    var tok = std.mem.tokenizeAny(u8, b.data[6..], "\x0d");
-
-    while (tok.next()) |t| {
-        const num = std.mem.readIntSliceBig(u16, t[0..2]);
-        // const textBytes = t[2..];
-        var strippedBytes = try alloc.alloc(u8, t.len - 2);
-        defer alloc.free(strippedBytes);
-
-        var f = try Field.decodeField(t, num, alloc);
-
-        try fields.append(f);
-    }
-    form.fields = fields;
-    std.log.debug("</readForm>", .{});
-
-    return form;
-}
 
 fn decodeFormData(form: *Form, data: []u8, alloc: std.mem.Allocator) !void {
     std.log.debug("<decodeFormData>", .{});
 
-    var tok = std.mem.tokenizeAny(u8, data, "\x0d");
+    var tok = std.mem.tokenizeAny(u8, data, "\x00");
 
     while (tok.next()) |t| {
-        const num = std.mem.readIntSliceBig(u16, t[0..2]);
-
-        var f = try Field.decodeField(t, num, alloc);
+        var f = try Field.decodeField(t, alloc);
+        std.log.debug("{any}", .{f});
 
         try form.fields.append(f);
     }
@@ -101,6 +73,7 @@ fn decodeFormData(form: *Form, data: []u8, alloc: std.mem.Allocator) !void {
 pub fn parseFormBlocks(blocks: std.ArrayList(Block.Block), header: Header.Header, alloc: std.mem.Allocator) !Form {
     std.log.debug("<parseFormBlocks>", .{});
     var formData: []u8 = try alloc.alloc(u8, header.formLength);
+    errdefer alloc.free(formData);
     defer alloc.free(formData);
 
     var form = try Form.init(alloc);
