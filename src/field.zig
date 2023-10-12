@@ -5,14 +5,14 @@ const FCF = @import("fcf.zig");
 const Error = error{InvalidFieldType};
 
 const FieldType = enum(u8) {
-    Text,
+    Text = 1,
     Numeric,
     Date,
     Time,
     Bool,
 
     pub fn decode(byte: u8) Error!FieldType {
-        std.log.debug("Decode Field Type 0x{X} '{b}' -> {X}\n", .{ byte, byte, byte << 1 >> 1 });
+        // std.debug.print("Decode Field Type 0x{X} '{b}' -> {X}\n", .{ byte, byte, byte << 1 >> 1 });
         switch (byte) {
             0x81...0x85 => return @as(FieldType, @enumFromInt(byte << 1 >> 1)),
             else => return Error.InvalidFieldType,
