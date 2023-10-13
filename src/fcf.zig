@@ -121,9 +121,9 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
 
     try writer.print("=" ** 20 ++ "Fields" ++ "=" ** 20 ++ "\n", .{});
 
-    for (form.fields.items) |field| {
-        try writer.print("{s}\t({})\n", .{ field.name, field.size });
-    }
+    // for (form.fields.items) |field| {
+    //     try writer.print("{s}\t({})\n", .{ field.name, field.size });
+    // }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
     const string =

@@ -59,8 +59,8 @@ pub fn main() anyerror!void {
 
     const stdout = std.io.getStdOut().writer();
 
-    // try f.printHeader(stdout);
-    // try f.printForm(stdout);
-    try f.printRecords(stdout);
+    try f.printHeader(stdout);
+    try f.printForm(stdout);
+    // try f.printRecords(stdout);
     try stdout.writeAll("\n");
 }
