@@ -50,7 +50,7 @@ pub fn parse(self: *FCF) !void {
     // get the fields
     const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + self.header.formLength];
 
-    var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
+    var tok = std.mem.tokenize(u8, fieldDefs, "\x0D");
     while (tok.next()) |f| {
         var chars = try FCF.Text.decodeText(f[2..], self.arena);
         var name: []u8 = try self.arena.alloc(u8, chars.items.len);

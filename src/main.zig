@@ -48,7 +48,7 @@ pub fn main() anyerror!void {
 
     const file = try std.fs.cwd().openFile(filename.?, .{});
     defer file.close();
-    const data = try file.readToEndAlloc(arena, std.math.maxInt(u16));
+    const data = try file.readToEndAlloc(arena, std.math.maxInt(u32));
 
     var f = FCF{ .arena = arena, .data = data };
 
