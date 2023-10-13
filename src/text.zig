@@ -49,7 +49,6 @@ test "TextCharacter" {
 ///
 /// Callers are responsible for freeing the returned list.
 pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
-    std.log.debug("<decodeText>", .{});
     var idx: usize = 0;
 
     var string = std.ArrayList(TextCharacter).init(alloc);
@@ -77,6 +76,5 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
         }
     }
 
-    std.log.debug("</decodeText>", .{});
     return string;
 }

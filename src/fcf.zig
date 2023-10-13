@@ -16,7 +16,7 @@ data: []const u8,
 header: FCF.Header = undefined,
 blocks: []align(1) const FCF.Block = &[0]FCF.Block{},
 empties: std.ArrayList(FCF.Empty) = undefined,
-form: FCF.FormDefinition = undefined,
+form: FCF.Form = undefined,
 
 index: usize = 0,
 
@@ -35,6 +35,7 @@ pub fn parse(self: *FCF) !void {
     const reader = stream.reader();
 
     self.header = try reader.readStruct(FCF.Header);
+    std.log.debug("{s}", .{self.header});
 
     if (!std.mem.eql(u8, self.header.magicString[0..14], magicString)) {
         std.log.warn("Found magic string: '{s}'", .{self.header.magicString});
@@ -43,14 +44,20 @@ pub fn parse(self: *FCF) !void {
 
     self.blocks = @as([*]align(1) const FCF.Block, @ptrCast(self.data.ptr + BLOCK_SIZE))[0..self.header.totalFileBlocks];
 
-    // get the form
+    // get the formdata
     try stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
-    self.form = try reader.readStruct(FCF.FormDefinition);
+    var formDef = try reader.readStruct(FCF.FormDefinition);
+
+    self.form = Form{
+        .lines = std.mem.bigToNative(u16, formDef.lines),
+        .length = std.mem.bigToNative(u16, formDef.length),
+        .fields = std.ArrayList(FieldDefinition).init(self.arena),
+    };
 
     // get the fields
-    const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + self.header.formLength];
+    const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + (2 * self.header.formLength)];
 
-    var tok = std.mem.tokenize(u8, fieldDefs, "\x0D");
+    var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
     while (tok.next()) |f| {
         var chars = try FCF.Text.decodeText(f[2..], self.arena);
         var name: []u8 = try self.arena.alloc(u8, chars.items.len);
@@ -62,7 +69,8 @@ pub fn parse(self: *FCF) !void {
             .chars = chars,
             .name = name,
         };
-        std.log.debug("{}, {s}", .{ fdef.size, fdef.name });
+        try self.form.fields.append(fdef);
+        if (self.form.fields.items.len >= self.header.availableDBFields) break;
     }
     std.log.debug("{any}", .{self.form});
 }
@@ -85,4 +93,30 @@ const FormDefinition = extern struct {
 
     /// Length plus lines plus 1
     length: u16,
+};
+
+const Form = struct {
+    lines: u16,
+    length: u16,
+    fields: std.ArrayList(FieldDefinition),
+
+    pub fn format(
+        self: @This(),
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = options;
+        _ = fmt;
+        try writer.print("Form Header:\n", .{});
+
+        try writer.print("  Lines: {}\n", .{self.lines});
+        try writer.print("  Length: {}\n", .{self.length});
+
+        try writer.print("=" ** 20 ++ "Fields" ++ "=" ** 20 ++ "\n", .{});
+
+        for (self.fields.items) |field| {
+            try writer.print("{s}\t({})\n", .{ field.name, field.size });
+        }
+    }
 };

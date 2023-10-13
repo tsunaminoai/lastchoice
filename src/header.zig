@@ -26,24 +26,24 @@ pub const Header = extern struct {
         _ = options;
         _ = fmt;
         const string =
-            \\
-            \\Form Index: {}
-            \\Last Block: {}
-            \\Total Blocks: {}
-            \\Data Records: {}
-            \\Magic String: {s}
-            \\Available Fields: {}
-            \\Form Length: {}
-            \\Form Revisions: {}
-            \\Empties Length: {}
-            \\Table Index: {}
-            \\Program Index: {}
-            \\Next Field Size: {}
-            \\@DISKVAR: "{s}"
+            \\FirstChoice Database Header
+            \\  Form Index: {}
+            \\  Last Block: {}
+            \\  Total Blocks: {}
+            \\  Data Records: {}
+            \\  Magic String: {s}
+            \\  Available Fields: {}
+            \\  Form Length: {}
+            \\  Form Revisions: {}
+            \\  Empties Length: {}
+            \\  Table Index: {}
+            \\  Program Index: {}
+            \\  Next Field Size: {}
+            \\  @DISKVAR: "{s}"
             \\
         ;
 
-        return std.fmt.format(writer, string, .{
+        try writer.print(string, .{
             self.formDefinitionIndex,
             self.lastUsedBlock,
             self.totalFileBlocks,
