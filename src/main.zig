@@ -56,4 +56,11 @@ pub fn main() anyerror!void {
         error.InvalidMagic => fatal("Invalid FirstChoice database file - Magic number invalid", .{}),
         else => |e| return e,
     };
+
+    const stdout = std.io.getStdOut().writer();
+
+    // try f.printHeader(stdout);
+    // try f.printForm(stdout);
+    try f.printRecords(stdout);
+    try stdout.writeAll("\n");
 }

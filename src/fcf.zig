@@ -17,6 +17,7 @@ header: FCF.Header = undefined,
 blocks: []align(1) const FCF.Block = &[0]FCF.Block{},
 empties: std.ArrayList(FCF.Empty) = undefined,
 form: FCF.Form = undefined,
+records: std.ArrayList(FCF.Record) = undefined,
 
 index: usize = 0,
 
@@ -35,14 +36,11 @@ pub fn parse(self: *FCF) !void {
     const reader = stream.reader();
 
     self.header = try reader.readStruct(FCF.Header);
-    std.log.debug("{s}", .{self.header});
 
     if (!std.mem.eql(u8, self.header.magicString[0..14], magicString)) {
         std.log.warn("Found magic string: '{s}'", .{self.header.magicString});
         return error.InvalidMagic;
     }
-
-    self.blocks = @as([*]align(1) const FCF.Block, @ptrCast(self.data.ptr + BLOCK_SIZE))[0..self.header.totalFileBlocks];
 
     // get the formdata
     try stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
@@ -56,24 +54,131 @@ pub fn parse(self: *FCF) !void {
 
     // get the fields
     const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + (2 * self.header.formLength)];
-
-    var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
-    while (tok.next()) |f| {
-        var chars = try FCF.Text.decodeText(f[2..], self.arena);
-        var name: []u8 = try self.arena.alloc(u8, chars.items.len);
-        for (0..name.len) |i| {
-            name[i] = chars.items[i].char;
+    {
+        var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
+        while (tok.next()) |f| {
+            var chars = try FCF.Text.decodeText(f[2..], self.arena);
+            var name: []u8 = try self.arena.alloc(u8, chars.items.len);
+            for (0..name.len) |i| {
+                name[i] = chars.items[i].char;
+            }
+            var fdef = FieldDefinition{
+                .size = std.mem.readIntSliceBig(u16, f[0..2]),
+                .chars = chars,
+                .name = name,
+            };
+            try self.form.fields.append(fdef);
+            if (self.form.fields.items.len >= self.header.availableDBFields) break;
         }
-        var fdef = FieldDefinition{
-            .size = std.mem.readIntSliceBig(u16, f[0..2]),
-            .chars = chars,
-            .name = name,
-        };
-        try self.form.fields.append(fdef);
-        if (self.form.fields.items.len >= self.header.availableDBFields) break;
     }
-    std.log.debug("{any}", .{self.form});
+
+    self.records = std.ArrayList(FCF.Record).init(self.arena);
+    {
+        const dataStartPosition = BLOCK_SIZE * (self.header.formDefinitionIndex + formDef.numBlocks);
+        var dataWindow = std.mem.window(u8, self.data[dataStartPosition..], BLOCK_SIZE, BLOCK_SIZE);
+
+        while (dataWindow.next()) |block| {
+            // skip data continuation, we'll handle that below
+            if (block[0] == '\x01') continue;
+            var numBlocks = std.mem.readIntLittle(u16, block[2..4]);
+            var extendBy = if (numBlocks > 1) numBlocks else 0;
+            const recordBytes = block.ptr[4 .. 128 - 4 + (extendBy * BLOCK_SIZE)];
+
+            var record = Record{
+                .fields = std.ArrayList(FCF.FieldDefinition).init(self.arena),
+            };
+
+            var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
+            while (tok.next()) |recordField| {
+                var chars = try FCF.Text.decodeText(recordField, self.arena);
+                if (chars.items.len == 0 or recordField.len == 0) {
+                    chars.deinit();
+                    continue;
+                }
+
+                var name: []u8 = try self.arena.alloc(u8, chars.items.len);
+                for (0..name.len) |i| {
+                    name[i] = chars.items[i].char;
+                }
+                var field = FieldDefinition{
+                    .size = 0,
+                    .chars = chars,
+                    .name = name,
+                };
+                try record.fields.append(field);
+            }
+            try self.records.append(record);
+        }
+    }
 }
+
+pub fn printForm(self: *FCF, writer: anytype) !void {
+    try writer.print("Form Header:\n", .{});
+
+    const form = self.form;
+    try writer.print("  Lines: {}\n", .{form.lines});
+    try writer.print("  Length: {}\n", .{form.length});
+
+    try writer.print("=" ** 20 ++ "Fields" ++ "=" ** 20 ++ "\n", .{});
+
+    for (form.fields.items) |field| {
+        try writer.print("{s}\t({})\n", .{ field.name, field.size });
+    }
+}
+pub fn printHeader(self: *FCF, writer: anytype) !void {
+    const string =
+        \\FirstChoice Database Header
+        \\  Form Index: {}
+        \\  Last Block: {}
+        \\  Total Blocks: {}
+        \\  Data Records: {}
+        \\  Magic String: {s}
+        \\  Available Fields: {}
+        \\  Form Length: {}
+        \\  Form Revisions: {}
+        \\  Empties Length: {}
+        \\  Table Index: {}
+        \\  Program Index: {}
+        \\  Next Field Size: {}
+        \\  @DISKVAR: "{s}"
+        \\
+    ;
+    const header = self.header;
+
+    try writer.print(string, .{
+        header.formDefinitionIndex,
+        header.lastUsedBlock,
+        header.totalFileBlocks,
+        header.dataRecords,
+        header.magicString,
+        header.availableDBFields,
+        header.formLength,
+        header.formRevisions,
+        header.emptiesLength,
+        header.tableViewIndex,
+        header.programRecordIndex,
+        header.nextFieldSize,
+        header.diskVar,
+    });
+}
+
+pub fn printRecords(self: *FCF, writer: anytype) !void {
+    var idx: u16 = 0;
+    for (self.records.items) |record| {
+        idx += 1;
+        try writer.print("| ", .{});
+
+        for (record.fields.items) |field| {
+            _ = field;
+            // if (field.name.len > 0 and field.name[0] != '\x00')
+            // try writer.print(" {s} |", .{field.name});
+        }
+    }
+}
+
+const Record = struct {
+    fields: std.ArrayList(FieldDefinition),
+};
 
 const FieldDefinition = struct {
     size: u16,
@@ -99,24 +204,4 @@ const Form = struct {
     lines: u16,
     length: u16,
     fields: std.ArrayList(FieldDefinition),
-
-    pub fn format(
-        self: @This(),
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = options;
-        _ = fmt;
-        try writer.print("Form Header:\n", .{});
-
-        try writer.print("  Lines: {}\n", .{self.lines});
-        try writer.print("  Length: {}\n", .{self.length});
-
-        try writer.print("=" ** 20 ++ "Fields" ++ "=" ** 20 ++ "\n", .{});
-
-        for (self.fields.items) |field| {
-            try writer.print("{s}\t({})\n", .{ field.name, field.size });
-        }
-    }
 };

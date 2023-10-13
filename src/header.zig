@@ -22,44 +22,6 @@ pub const Header = extern struct {
     nextFieldSize: u8,
     diskVar: [128 - 41]u8,
 
-    pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = options;
-        _ = fmt;
-        const string =
-            \\FirstChoice Database Header
-            \\  Form Index: {}
-            \\  Last Block: {}
-            \\  Total Blocks: {}
-            \\  Data Records: {}
-            \\  Magic String: {s}
-            \\  Available Fields: {}
-            \\  Form Length: {}
-            \\  Form Revisions: {}
-            \\  Empties Length: {}
-            \\  Table Index: {}
-            \\  Program Index: {}
-            \\  Next Field Size: {}
-            \\  @DISKVAR: "{s}"
-            \\
-        ;
-
-        try writer.print(string, .{
-            self.formDefinitionIndex,
-            self.lastUsedBlock,
-            self.totalFileBlocks,
-            self.dataRecords,
-            self.magicString,
-            self.availableDBFields,
-            self.formLength,
-            self.formRevisions,
-            self.emptiesLength,
-            self.tableViewIndex,
-            self.programRecordIndex,
-            self.nextFieldSize,
-            self.diskVar,
-        });
-    }
-
     pub fn fromBytes(raw: *[128]u8) Header {
         var head = std.mem.bytesToValue(Header, raw);
         return head;
