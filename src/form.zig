@@ -6,7 +6,7 @@ const Header = @import("header.zig");
 
 const Endien = std.builtin.Endian;
 
-pub const Form = struct {
+pub const Form = extern struct {
     fields: std.ArrayList(Field.Field) = undefined,
     numBlocks: u16 = 0,
     lines: u16 = 0,

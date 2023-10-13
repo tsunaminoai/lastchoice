@@ -2,7 +2,7 @@ const std = @import("std");
 const Header = @import("header.zig").Header;
 const Block = @import("block.zig");
 const Empty = @import("block.zig").Empty;
-const Form = @import("form.zig");
+const Text = @import("text.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -10,127 +10,79 @@ const Endien = std.builtin.Endian;
 const bigToNative = std.mem.bigToNative;
 const nativeToBig = std.mem.nativeToBig;
 
-buffer: []u8 = undefined,
+arena: Allocator,
+data: []const u8,
+
+header: FCF.Header = undefined,
+blocks: []align(1) const FCF.Block = &[0]FCF.Block{},
+empties: std.ArrayList(FCF.Empty) = undefined,
+form: FCF.FormDefinition = undefined,
+
 index: usize = 0,
-head: Header = undefined,
-allocator: Allocator,
-blocks: std.ArrayList(Block.Block) = undefined,
-empties: std.ArrayList(Block.Empty) = undefined,
-form: Form.Form = undefined,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
 
 pub const FCF = @This(); //FirstChoice File
 
-pub const Error = error{ EndOfStream, UnhandledBlockType, BadTextCharacter } || anyerror;
+pub const Error = error{ InvalidMagic, EndOfStream, UnhandledBlockType, BadTextCharacter } || anyerror;
 
-pub fn init(allocator: Allocator) FCF {
-    _ = std.log.defaultLogEnabled(std.log.Level.debug);
-    return .{
-        .buffer = undefined,
-        .head = undefined,
-        .allocator = allocator,
-    };
-}
+pub const BLOCK_SIZE = 128;
 
-pub fn deinit(self: *FCF) void {
-    self.allocator.free(self.buffer);
-    for (self.blocks.items) |*b| {
-        b.deinit(self.allocator);
+pub fn parse(self: *FCF) !void {
+    var stream = std.io.fixedBufferStream(self.data);
+
+    const reader = stream.reader();
+
+    self.header = try reader.readStruct(FCF.Header);
+
+    if (!std.mem.eql(u8, self.header.magicString[0..14], magicString)) {
+        std.log.warn("Found magic string: '{s}'", .{self.header.magicString});
+        return error.InvalidMagic;
     }
-    self.blocks.deinit();
-    self.form.deinit();
-    // self.empties.deinit();
-}
 
-pub fn open(self: *FCF, fileName: []const u8) Error!void {
-    const file = try std.fs.cwd().openFile(fileName, .{});
-    defer file.close();
+    self.blocks = @as([*]align(1) const FCF.Block, @ptrCast(self.data.ptr + BLOCK_SIZE))[0..self.header.totalFileBlocks];
 
-    self.buffer = try file.readToEndAlloc(self.allocator, 4 * 1024 * 1024);
-    std.log.debug("Loaded {} bytes\n", .{self.buffer.len});
-    self.head = Header.fromBytes(self.buffer[0..128]);
+    // get the form
+    try stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
+    self.form = try reader.readStruct(FCF.FormDefinition);
 
-    // self.blocks = try std.ArrayList(Block).initCapacity(self.allocator, self.head.totalFileBlocks);
-    self.blocks = try Block.readBlocks(self.buffer, self.allocator);
-    errdefer self.blocks.deinit();
-    // std.debug.assert(self.blocks.items.len == self.head.totalFileBlocks);
-    std.log.debug("Read {} blocks", .{self.blocks.items.len});
-    self.form = try Form.parseFormBlocks(self.blocks, self.head, self.allocator);
-    errdefer self.form.deinit();
+    // get the fields
+    const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + self.header.formLength];
 
-    self.form.print();
-
-    // self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
-    // try self.readEmpties();
-    // try self.read();
-
-}
-
-fn readEmpties(self: *FCF) Error!void {
-    // move to the fifth block
-    self.index = @sizeOf(Block) * 4;
-    for (0..self.head.emptiesLength) |_| {
-        try self.empties.append(try self.readStruct(Empty));
-    }
-}
-
-fn read(self: *FCF) Error!void {
-    std.log.debug("<read>", .{});
-
-    self.index = @sizeOf(Block) * self.head.formDefinitionIndex;
-
-    while (try Block.peekBlock(self)) |blockType| {
-        switch (blockType) {
-            .FormDescriptionView => try self.blocks.append(try self.readStruct(Block)),
-            else => try self.blocks.append(try self.readStruct(Block)),
+    var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
+    while (tok.next()) |f| {
+        var chars = try FCF.Text.decodeText(f[2..], self.arena);
+        var name: []u8 = try self.arena.alloc(u8, chars.items.len);
+        for (0..name.len) |i| {
+            name[i] = chars.items[i].char;
         }
-
-        break;
+        var fdef = FieldDefinition{
+            .size = std.mem.readIntSliceBig(u16, f[0..2]),
+            .chars = chars,
+            .name = name,
+        };
+        std.log.debug("{}, {s}", .{ fdef.size, fdef.name });
     }
-    std.log.debug("</read>", .{});
+    std.log.debug("{any}", .{self.form});
 }
 
-fn readStruct(self: *FCF, comptime T: type) Error!T {
-    std.log.debug("<readStruct>", .{});
+const FieldDefinition = struct {
+    size: u16,
+    chars: std.ArrayList(FCF.Text.TextCharacter),
+    name: []u8,
+};
 
-    const fields = std.meta.fields(T);
+const FormDefinition = extern struct {
+    /// The block type tag
+    blockType: u16,
 
-    var item: T = undefined;
-    inline for (fields) |field| {
-        @field(item, field.name) = try self.readStructField(field.type);
-    }
-    std.log.debug("</readStruct>", .{});
+    /// Number of blocks the form definintion occupies
+    numBlocks: u16,
 
-    return item;
-}
-fn readStructField(self: *FCF, comptime T: type) Error!T {
-    return switch (@typeInfo(T)) {
-        .Enum, .Int => try self.readInt(T),
-        .Array => |array| {
-            var arr: [array.len]array.child = undefined;
-            var index: usize = 0;
-            while (index < array.len) : (index += 1) {
-                arr[index] = try self.readStructField(array.child);
-            }
-            return arr;
-        },
-        .Struct => try self.readStruct(T),
-        else => @compileError("Unimplemented type: " ++ @typeName(T)),
-    };
-}
+    /// Number of lines taken in the form screen (Big Endian)
+    lines: u16,
 
-fn readInt(self: *FCF, comptime T: type) Error!T {
-    const size = @sizeOf(T);
-    if (self.index + size > self.buffer.len) return Error.EndOfStream;
-
-    const slice = self.buffer[self.index .. self.index + size];
-    const value = @as(*align(1) const T, @ptrCast(slice)).*;
-    self.index += size;
-    return value;
-}
-
-test {
-    _ = std.testing.refAllDecls(@This());
-}
+    /// Length plus lines plus 1
+    length: u16,
+};

@@ -37,13 +37,9 @@ pub const BlockTypeInt = enum(u16) {
     }
 };
 
-pub const Block = struct {
-    recordType: BlockTypeInt,
-    data: []u8,
-
-    pub fn deinit(self: *@This(), alloc: Allocator) void {
-        alloc.free(self.data);
-    }
+pub const Block = extern struct {
+    blockType: BlockTypeInt,
+    data: [126]u8,
 };
 
 pub const Empty = extern struct {
