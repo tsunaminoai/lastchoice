@@ -30,6 +30,7 @@ test "Field type" {
 pub const Field = struct {
     fieldType: FieldType = FieldType.Text,
     fieldStyle: Text.TextStyles = Text.TextStyles{},
+    fieldSize: u16 = 0,
     name: std.ArrayList(Text.TextCharacter) = undefined,
 
     pub fn print(self: *@This()) void {
@@ -52,33 +53,28 @@ pub const Field = struct {
         for (self.name.items, 0..) |c, i| {
             buffer[i] = c.char;
         }
-        return std.fmt.format(writer, "{s} ({s}): {any}\n", .{ buffer, @tagName(self.fieldType), self.fieldStyle });
+        return std.fmt.format(writer, "\"{s}\" ({s}): {any}\n", .{ buffer, @tagName(self.fieldType), self.fieldStyle });
     }
 };
 
 pub fn decodeFields(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Field) {
     var fType: FieldType = FieldType.Text;
-    var fieldReadLen = std.mem.readIntSliceBig(u16, bytes[0..2]);
     var fieldList = std.ArrayList(Field).init(alloc);
     errdefer fieldList.deinit();
 
-    var idx: usize = 0;
+    var tok = std.mem.tokenizeAny(u8, bytes, "\x0D\x0D");
 
-    while (idx < bytes.len) {
-        // convert fron len in u16 to u8
-        var fieldLen = std.mem.readIntSliceBig(u16, bytes[idx .. idx + 2]) / 2;
-        idx += 2;
-        var fieldBytes = bytes[idx .. idx + fieldLen];
-        var text = try Text.decodeText(fieldBytes, alloc);
+    while (tok.next()) |fieldBytes| {
+        var text = try Text.decodeText(fieldBytes[2..], alloc);
         errdefer text.deinit();
 
         var field = Field{
             .fieldType = fType,
             .fieldStyle = @as(Text.TextStyles, @bitCast(fieldBytes[2] & 0xF)),
+            .fieldSize = std.mem.readIntSliceBig(u16, fieldBytes[0..2]),
             .name = text,
         };
         try fieldList.append(field);
-        idx += fieldReadLen;
     }
 
     return fieldList;
@@ -115,12 +111,12 @@ test "Field" {
 
     var field = fields.items[0];
 
-    // std.debug.print("\n{any}\n", .{field});
+    std.debug.print("\n{any}\n", .{field});
 
     try std.testing.expect(field.fieldType == FieldType.Text);
-    try std.testing.expect(field.fieldStyle.bold == false);
-    // std.debug.print("Length: {d}\n", .{field.name.items.len});
-    try std.testing.expect(field.name.items.len == 13);
+    try std.testing.expect(field.fieldStyle.bold == true);
+    std.debug.print("Length: {d}\n", .{field.name.items.len});
+    try std.testing.expect(field.name.items.len == 38);
     try std.testing.expect(field.name.items[0].char == 'F');
     try std.testing.expect(field.name.items[1].char == 'i');
     try std.testing.expect(field.name.items[2].char == 'r');

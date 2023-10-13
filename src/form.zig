@@ -33,6 +33,9 @@ pub const Form = struct {
             \\
         ;
         std.log.debug(fmt, .{ self.length, self.numBlocks, self.lines, self.fields.items.len });
+        for (self.fields.items) |*f| {
+            f.print();
+        }
     }
 
     pub fn format(
@@ -54,20 +57,6 @@ pub const Form = struct {
         return std.fmt.format(writer, stringFormat, .{ self.length, self.numBlocks, self.lines, self.fields });
     }
 };
-
-fn decodeFormData(form: *Form, data: []u8, alloc: std.mem.Allocator) !void {
-    std.log.debug("<decodeFormData>", .{});
-
-    var tok = std.mem.tokenizeAny(u8, data, "\x00");
-
-    while (tok.next()) |t| {
-        var f = try Field.decodeField(t, alloc);
-        std.log.debug("{any}", .{f});
-
-        try form.fields.append(f);
-    }
-    std.log.debug("</decodeFormData>", .{});
-}
 
 pub fn parseFormBlocks(blocks: std.ArrayList(Block.Block), header: Header.Header, alloc: std.mem.Allocator) !Form {
     std.log.debug("<parseFormBlocks>", .{});
@@ -95,6 +84,7 @@ pub fn parseFormBlocks(blocks: std.ArrayList(Block.Block), header: Header.Header
             else => {},
         }
     }
+    std.log.debug("FORM DATA: {s}", .{std.fmt.bytesToHex(formData[0..32], .upper)});
     form.fields = try Field.decodeFields(formData, alloc);
     errdefer form.deinit();
 

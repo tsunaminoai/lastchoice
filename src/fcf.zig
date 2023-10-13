@@ -59,6 +59,9 @@ pub fn open(self: *FCF, fileName: []const u8) Error!void {
     std.log.debug("Read {} blocks", .{self.blocks.items.len});
     self.form = try Form.parseFormBlocks(self.blocks, self.head, self.allocator);
     errdefer self.form.deinit();
+
+    self.form.print();
+
     // self.empties = try std.ArrayList(Empty).initCapacity(self.allocator, self.head.totalFileBlocks);
     // try self.readEmpties();
     // try self.read();
