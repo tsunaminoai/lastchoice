@@ -3,6 +3,8 @@ const Block = @import("block.zig");
 const FCF = @import("fcf.zig");
 
 // https://www.fileformat.info/format/foxpro/dbf.htm
+// TODO: docs
+
 const MagicString = [14]u8{ 0x0C, 0x47, 0x45, 0x52, 0x42, 0x49, 0x4C, 0x44, 0x42, 0x33, 0x20, 0x20, 0x20, 0x00 };
 pub const Header = extern struct {
     formDefinitionIndex: u16, // block# - 1

@@ -41,6 +41,8 @@ pub fn main() anyerror!void {
 
     var filename: ?[]const u8 = null;
 
+    // TODO: add actual options
+
     var it = ArgsIterator{ .args = args };
     while (it.next()) |arg| {
         filename = arg;

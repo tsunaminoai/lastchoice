@@ -174,10 +174,12 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
         try writer.writeAll("\n");
     }
 }
+// TODO: docs
 
 const Record = struct {
     fields: std.ArrayList(FieldDefinition),
 };
+// TODO: docs
 
 const FieldDefinition = struct {
     size: u16,
@@ -196,6 +198,7 @@ const FieldDefinition = struct {
         try writer.print("{s}", .{trimmed});
     }
 };
+// TODO: docs
 
 const FormDefinition = extern struct {
     /// The block type tag

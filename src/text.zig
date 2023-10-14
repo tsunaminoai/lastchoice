@@ -48,6 +48,8 @@ test "TextCharacter" {
 /// will read the next byte(s) as a style or baseline.
 ///
 /// Callers are responsible for freeing the returned list.
+// TODO: need to handle the control characters better.
+// TODO: optionally strip strings
 pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
     var idx: usize = 0;
 
