@@ -169,7 +169,7 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
         try writer.print("| ", .{});
 
         for (record.fields.items) |field|
-            try writer.print(" {s} |", .{field.name});
+            try writer.print(" {s} |", .{field});
 
         try writer.writeAll("\n");
     }
@@ -183,6 +183,18 @@ const FieldDefinition = struct {
     size: u16,
     chars: std.ArrayList(FCF.Text.TextCharacter),
     name: []u8,
+
+    pub fn format(
+        self: @This(),
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+        const trimmed = std.mem.trim(u8, self.name, &std.ascii.whitespace);
+        try writer.print("{s}", .{trimmed});
+    }
 };
 
 const FormDefinition = extern struct {
