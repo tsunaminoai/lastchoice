@@ -121,9 +121,9 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
 
     try writer.print("=" ** 20 ++ "Fields" ++ "=" ** 20 ++ "\n", .{});
 
-    // for (form.fields.items) |field| {
-    //     try writer.print("{s}\t({})\n", .{ field.name, field.size });
-    // }
+    for (form.fields.items) |field| {
+        try writer.print("{s}\t({})\n", .{ field.name, field.size });
+    }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
     const string =
@@ -168,11 +168,10 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
         idx += 1;
         try writer.print("| ", .{});
 
-        for (record.fields.items) |field| {
-            _ = field;
-            // if (field.name.len > 0 and field.name[0] != '\x00')
-            // try writer.print(" {s} |", .{field.name});
-        }
+        for (record.fields.items) |field|
+            try writer.print(" {s} |", .{field.name});
+
+        try writer.writeAll("\n");
     }
 }
 

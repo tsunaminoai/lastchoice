@@ -61,6 +61,6 @@ pub fn main() anyerror!void {
 
     try f.printHeader(stdout);
     try f.printForm(stdout);
-    // try f.printRecords(stdout);
+    try f.printRecords(stdout);
     try stdout.writeAll("\n");
 }

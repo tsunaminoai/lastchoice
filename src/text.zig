@@ -54,23 +54,23 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
     var string = std.ArrayList(TextCharacter).init(alloc);
     errdefer string.deinit();
 
-    while (idx < bytes.len - 1) {
+    while (idx < bytes.len) {
         var newChar = TextCharacter{};
 
         if (bytes[idx] & 0x80 == 0x80) {
             if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
 
             if (bytes[idx + 1] & 0xD0 == 0xD0) {
-                newChar.baseline = @as(Baseline, @bitCast(bytes[idx + 2] & 0xF));
+                newChar.baseline = @as(Baseline, @bitCast(bytes[idx + 2] & 0x0F));
                 try string.append(newChar);
                 idx += 3;
             } else {
-                newChar.style = @as(TextStyles, @bitCast(bytes[idx + 1] & 0xF));
+                newChar.style = @as(TextStyles, @bitCast(bytes[idx + 1] & 0x0F));
                 try string.append(newChar);
                 idx += 2;
             }
         } else {
-            newChar.char = if (bytes[idx] == 0x0D) ' ' else bytes[idx];
+            newChar.char = if (bytes[idx] == 0x0D or bytes[idx] == '\n') ' ' else bytes[idx];
             try string.append(newChar);
             idx += 1;
         }
