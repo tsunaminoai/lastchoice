@@ -20,6 +20,7 @@ form: FCF.Form = undefined,
 records: std.ArrayList(FCF.Record) = undefined,
 
 index: usize = 0,
+stream: std.io.FixedBufferStream([]const u8) = undefined,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
@@ -31,9 +32,9 @@ pub const Error = error{ InvalidMagic, EndOfStream, UnhandledBlockType, BadTextC
 pub const BLOCK_SIZE = 128;
 
 pub fn parse(self: *FCF) !void {
-    var stream = std.io.fixedBufferStream(self.data);
+    self.stream = std.io.fixedBufferStream(self.data);
 
-    const reader = stream.reader();
+    const reader = self.stream.reader();
 
     self.header = try reader.readStruct(FCF.Header);
 
@@ -42,15 +43,7 @@ pub fn parse(self: *FCF) !void {
         return error.InvalidMagic;
     }
 
-    // get the formdata
-    try stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
-    var formDef = try reader.readStruct(FCF.FormDefinition);
-
-    self.form = Form{
-        .lines = std.mem.bigToNative(u16, formDef.lines),
-        .length = std.mem.bigToNative(u16, formDef.length),
-        .fields = std.ArrayList(FieldDefinition).init(self.arena),
-    };
+    var formDef = try self.parseForm();
 
     // get the fields
     const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + (2 * self.header.formLength)];
@@ -198,6 +191,32 @@ const FieldDefinition = struct {
         try writer.print("{s}", .{trimmed});
     }
 };
+
+const FieldType = enum { Text, Numeric, Date, Time, Bool };
+
+pub fn Field(comptime Ftype: type) !type {
+    return .{
+        .ftype = Ftype,
+        .definition = FieldDefinition{},
+    };
+}
+
+fn parseForm(self: *FCF) !FCF.FormDefinition {
+    // get the formdata
+    try self.stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
+    var reader = self.stream.reader();
+
+    var formDef = try reader.readStruct(FCF.FormDefinition);
+
+    self.form = Form{
+        .lines = std.mem.bigToNative(u16, formDef.lines),
+        .length = std.mem.bigToNative(u16, formDef.length),
+        .fields = std.ArrayList(FieldDefinition).init(self.arena),
+    };
+
+    return formDef;
+}
+
 // TODO: docs
 
 const FormDefinition = extern struct {
