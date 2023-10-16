@@ -70,8 +70,12 @@ pub fn parse(self: *FCF) !void {
                 }
 
                 var name: []u8 = try self.arena.alloc(u8, chars.items.len);
-                for (0..name.len) |i| {
-                    name[i] = chars.items[i].char;
+                var idx: usize = 0;
+                for (chars.items) |c| {
+                    if (std.ascii.isPrint(c.char) and c.char != '\x00') {
+                        name[idx] = c.char;
+                        idx += 1;
+                    }
                 }
                 var field = FieldDefinition{
                     .size = 0,
@@ -142,8 +146,9 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
         idx += 1;
         try writer.print("| ", .{});
 
-        for (record.fields.items) |field|
+        for (record.fields.items) |field| {
             try writer.print(" {s} |", .{field.name});
+        }
 
         try writer.writeAll("\n");
     }

@@ -60,7 +60,7 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
     while (idx < bytes.len) {
         var newChar = TextCharacter{};
 
-        if (bytes[idx] & 0x80 == 0x80) {
+        if (bytes[idx] > 0x80) {
             if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
             if (idx == bytes.len - 1) {
                 try string.append(newChar);
@@ -92,7 +92,7 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
             }
         } else {
             // TODO: Make this optional, but not let it affect field definitions
-            if (bytes[idx] == 0x0D or bytes[idx] == '\n') {
+            if (bytes[idx] == 0x0D or bytes[idx] == '\n' or bytes[idx] == '\x00') {
                 idx += 1;
                 continue;
             }
