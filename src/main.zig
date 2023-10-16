@@ -86,8 +86,8 @@ pub fn main() anyerror!void {
             continue;
         } else filename = arg;
     }
-
-    const file = try std.fs.cwd().openFile(filename.?, .{});
+    const fname = filename orelse fatal("No input file specificed.", .{});
+    const file = try std.fs.cwd().openFile(fname, .{});
     defer file.close();
     const data = try file.readToEndAlloc(arena, std.math.maxInt(u32));
 
