@@ -62,7 +62,10 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
 
         if (bytes[idx] & 0x80 == 0x80) {
             if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
-
+            if (idx == bytes.len - 1) {
+                try string.append(newChar);
+                break;
+            }
             switch (bytes[idx + 1]) {
                 0x90...0x9F => |x| { //field type
                     newChar.fieldType = try FCF.FieldType.fromInt(newChar.char);

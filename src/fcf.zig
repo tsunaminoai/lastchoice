@@ -255,8 +255,11 @@ fn parseForm(self: *FCF) !void {
             var size = std.mem.readIntSliceBig(u16, f[0..2]);
 
             var chars = try FCF.Text.decodeText(f[2..], self.arena);
+            if (chars.items.len == 0) {
+                continue;
+            }
             var name: []u8 = try self.arena.alloc(u8, chars.items.len);
-            for (0..name.len - 1) |i| {
+            for (0..name.len) |i| {
                 name[i] = chars.items[i].char;
             }
             var ftype = chars.pop().fieldType;
