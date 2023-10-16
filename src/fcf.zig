@@ -95,7 +95,7 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
     try writer.print("=" ** 20 ++ " Fields " ++ "=" ** 20 ++ "\n", .{});
 
     for (form.fields.items) |field| {
-        try writer.print("{s}\t({})\n", .{ field.definition.name, field.definition.size });
+        try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, @tagName(field.fType) });
     }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
