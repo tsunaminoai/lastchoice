@@ -143,7 +143,7 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
         try writer.print("| ", .{});
 
         for (record.fields.items) |field|
-            try writer.print(" {s} |", .{field});
+            try writer.print(" {s} |", .{field.name});
 
         try writer.writeAll("\n");
     }

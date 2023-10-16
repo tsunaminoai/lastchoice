@@ -91,9 +91,13 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
                 },
             }
         } else {
-            newChar.char = if (bytes[idx] == 0x0D or bytes[idx] == '\n') ' ' else bytes[idx];
             // TODO: Make this optional, but not let it affect field definitions
-            //try string.append(newChar);
+            if (bytes[idx] == 0x0D or bytes[idx] == '\n') {
+                idx += 1;
+                continue;
+            }
+            newChar.char = bytes[idx];
+            try string.append(newChar);
             idx += 1;
         }
     }
