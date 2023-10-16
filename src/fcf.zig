@@ -224,6 +224,8 @@ fn parseForm(self: *FCF) !void {
     const fieldDefs = self.data[formStart + 8 .. formEnd - 8];
     // std.debug.print("{s}\n", .{std.fmt.bytesToHex(fieldDefs[0..306], .upper)});
     {
+
+        // TODO: This really needs to handle the nulls as part of the string, unforuntately
         var tok = std.mem.tokenize(u8, fieldDefs, "\x00");
         while (tok.next()) |f| {
             var size = f[0];
