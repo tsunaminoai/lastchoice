@@ -99,7 +99,7 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
     try writer.print("=" ** 20 ++ " Fields " ++ "=" ** 20 ++ "\n", .{});
 
     for (form.fields.items) |field| {
-        try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, @tagName(field.fType) });
+        try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, field.fType.toStr() });
     }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
@@ -199,11 +199,12 @@ pub const FieldStyle = enum(u4) {
 };
 
 pub const FieldType = enum(u5) {
-    Text,
-    Numeric,
-    Date,
-    Time,
-    Bool,
+    Text = 1,
+    Numeric = 2,
+    Date = 3,
+    Time = 4,
+    Bool = 5,
+    _,
     pub fn fromInt(int: u8) ?FieldType {
         return switch (int) {
             1 => .Text,
@@ -211,11 +212,17 @@ pub const FieldType = enum(u5) {
             3 => .Date,
             4 => .Time,
             5 => .Bool,
-
-            else => {
-                // std.debug.print("Invalid Field Type: {X:>02}\n", .{int});
-                return null;
-            },
+            else => null,
+        };
+    }
+    pub fn toStr(self: @This()) []const u8 {
+        return switch (self) {
+            .Text => "Text",
+            .Numeric => "Number",
+            .Date => "Date",
+            .Time => "Time",
+            .Bool => "Bool",
+            else => "Unknown",
         };
     }
 };
@@ -223,11 +230,11 @@ pub const FieldType = enum(u5) {
 pub const Field = struct {
     definition: FieldDefinition = undefined,
     fType: FieldType = .Text,
-    fStyle: FieldStyle = .Normal,
+    fStyle: Text.TextStyles = .{ .normal = true },
 
     const Self = @This();
 
-    pub fn init(ftype: FieldType, style: FieldStyle) Self {
+    pub fn init(ftype: FieldType, style: Text.TextStyles) Self {
         return Self{
             .fType = ftype,
             .fStyle = style,
@@ -264,9 +271,13 @@ fn parseForm(self: *FCF) !void {
             var lex = Text.Lexer.init(f[2..], self.arena);
             defer lex.deinit();
             var fieldType: FieldType = undefined;
+            var fieldStyle: ?Text.TextStyles = null;
             var i: usize = 0;
             while (try lex.next()) |char| {
                 try chars.append(char);
+                if (fieldStyle == null) {
+                    fieldStyle = char.style;
+                }
                 if (char.fieldType) |ftype| {
                     fieldType = ftype;
                     name[i] = 0x00;
@@ -276,8 +287,7 @@ fn parseForm(self: *FCF) !void {
                     i += 1;
                 }
             }
-            var fstyle = FCF.FieldStyle.fromInt(f[4]) catch .Normal;
-            var field = Field.init(fieldType, fstyle);
+            var field = Field.init(fieldType, fieldStyle.?);
 
             field.setDefinition(FieldDefinition{
                 .size = size,
@@ -285,7 +295,6 @@ fn parseForm(self: *FCF) !void {
                 .name = name,
             });
             try self.form.fields.append(field);
-            std.debug.print("{d}: {any}\n", .{ self.form.fields.items.len, field });
             if (self.form.fields.items.len >= self.header.availableDBFields) break;
         }
     }

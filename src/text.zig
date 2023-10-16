@@ -9,6 +9,10 @@ pub const TextStyles = packed struct(u8) {
     bold: bool = false,
     italic: bool = false,
     _padding: enum(u4) { unset } = .unset,
+
+    pub fn fromInt(int: u8) TextStyles {
+        return @as(TextStyles, @bitCast(int));
+    }
 };
 
 // Baseline is a packed struct that represents the various baselines that can be applied to a character.
@@ -69,12 +73,12 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
             switch (bytes[idx + 1]) {
                 0x90...0x9F => |x| { //field type
                     newChar.fieldType = FCF.FieldType.fromInt(newChar.char).?;
-                    newChar.style = @as(TextStyles, @bitCast(x));
+                    newChar.style = TextStyles.fromInt(x);
                     try string.append(newChar);
                     idx += 2;
                 },
                 0x81...0x8F => |x| { // Regular text
-                    newChar.style = @as(TextStyles, @bitCast(x));
+                    newChar.style = TextStyles.fromInt(x);
                     try string.append(newChar);
                     idx += 2;
                 },
@@ -164,11 +168,12 @@ pub const Lexer = struct {
         switch (currentChar) {
             0x00...0x80 => |c| { // one byte ascii
                 defer self.advance();
-                if (c == 0x0D) { // new line
-                    textCharacter.char = '\n';
-                } else {
-                    textCharacter.char = c;
+                switch (c) {
+                    0x0D => textCharacter.char = '\n',
+                    0x80 => textCharacter.char = ' ',
+                    else => textCharacter.char = c,
                 }
+
                 return textCharacter;
             },
             else => |c| { // multibyte
@@ -184,7 +189,7 @@ pub const Lexer = struct {
                         // } else {
                         //     // field
                         // }
-                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        textCharacter.style = TextStyles.fromInt(b);
                         textCharacter.baseline = @as(Baseline, @bitCast(byte3 & 0x0F));
 
                         return textCharacter;
@@ -196,19 +201,19 @@ pub const Lexer = struct {
                         if (FCF.FieldType.fromInt(textCharacter.char)) |t| {
                             textCharacter.fieldType = t;
                         }
-                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        textCharacter.style = TextStyles.fromInt(b);
                         return textCharacter;
                     },
                     0x81...0x8F => |b| {
                         defer self.advanceBy(2);
 
-                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        textCharacter.style = TextStyles.fromInt(b);
                         return textCharacter;
                     },
                     0xC0...0xCF => |b| {
                         defer self.advanceBy(3);
                         const byte3 = self.peekN(2);
-                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        textCharacter.style = TextStyles.fromInt(b);
                         textCharacter.baseline = @as(Baseline, @bitCast(byte3 & 0x0F));
 
                         return textCharacter;
