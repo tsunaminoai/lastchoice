@@ -52,97 +52,6 @@ test "TextCharacter" {
     try expect(expected == actual);
 }
 
-/// DecodeText takes a byte array and decodes it into a list of TextCharacters.
-/// It does this by iterating over the bytes, and if the first bit is set, it
-/// will read the next byte(s) as a style or baseline.
-///
-/// Callers are responsible for freeing the returned list.
-// TODO: need to handle the control characters better.
-// TODO: optionally strip strings
-pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(TextCharacter) {
-    var idx: usize = 0;
-
-    var string = std.ArrayList(TextCharacter).init(alloc);
-    errdefer string.deinit();
-
-    while (idx < bytes.len) {
-        var newChar = TextCharacter{};
-
-        if (bytes[idx] > 0x80) {
-            if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
-            if (idx == bytes.len - 1) {
-                try string.append(newChar);
-                break;
-            }
-            switch (bytes[idx + 1]) {
-                0x90...0x9F => |x| { //field type
-                    newChar.fieldType = FCF.FieldType.fromInt(newChar.char).?;
-                    newChar.style = TextStyles.fromInt(x);
-                    try string.append(newChar);
-                    idx += 2;
-                },
-                0x81...0x8F => |x| { // Regular text
-                    newChar.style = TextStyles.fromInt(x);
-                    try string.append(newChar);
-                    idx += 2;
-                },
-                0xC0...0xDF => |x| { // needs 3rd byte
-                    newChar.baseline = Baseline.fromInt(x);
-                    try string.append(newChar);
-                    idx += 3;
-                },
-                else => |x| {
-                    std.debug.print("Unknown Text byte sequence:  0x{X:>02}\n", .{x});
-                    try string.append(newChar);
-
-                    idx += 1;
-                },
-            }
-        } else {
-            // TODO: Make this optional, but not let it affect field definitions
-            if (bytes[idx] == 0x0D or bytes[idx] == '\n' or bytes[idx] == '\x00') {
-                idx += 1;
-                continue;
-            }
-            newChar.char = bytes[idx];
-            try string.append(newChar);
-            idx += 1;
-        }
-    }
-
-    return string;
-}
-// test "Decode Field Text" {
-//     var gpa = std.testing.allocator;
-//     // "CLASS"
-//     var textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x81, 0x90, 0x0d, 0x0d };
-//     var lex = Lexer.init(textFieldBytes,gpa);
-
-//     var textField = try decodeText(textFieldBytes, gpa);
-//     defer textField.deinit();
-//     try std.testing.expectEqual(textField.pop().fieldType, FCF.FieldType.Text);
-
-//     var numericFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x82, 0x90, 0x0d, 0x0d };
-//     var numericField = try decodeText(numericFieldBytes, gpa);
-//     defer numericField.deinit();
-//     try std.testing.expectEqual(numericField.pop().fieldType, FCF.FieldType.Numeric);
-
-//     var dateFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
-//     var dateField = try decodeText(dateFieldBytes, gpa);
-//     defer dateField.deinit();
-//     try std.testing.expectEqual(dateField.pop().fieldType, FCF.FieldType.Date);
-
-//     var timeFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x84, 0x90, 0x0d, 0x0d };
-//     var timeField = try decodeText(timeFieldBytes, gpa);
-//     defer timeField.deinit();
-//     try std.testing.expectEqual(timeField.pop().fieldType, FCF.FieldType.Time);
-
-//     var boolFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x85, 0x90, 0x0d, 0x0d };
-//     var boolField = try decodeText(boolFieldBytes, gpa);
-//     defer boolField.deinit();
-//     try std.testing.expectEqual(boolField.pop().fieldType, FCF.FieldType.Bool);
-// }
-
 const ErrorList = std.ArrayList([]u8);
 
 pub const Lexer = struct {
@@ -229,7 +138,10 @@ pub const Lexer = struct {
 
                         return textCharacter;
                     },
-                    else => return null,
+                    else => {
+                        // std.log.debug("default prong> b1: {X:>02} b2: {X:>02}", .{ currentChar, byte2 });
+                        return null;
+                    },
                 }
             },
         }
