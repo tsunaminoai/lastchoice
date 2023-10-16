@@ -26,6 +26,7 @@ pub const TextCharacter = struct {
     char: u8 = 0,
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
+    fieldType: FCF.FieldType = .Text,
 
     pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = options;
@@ -62,21 +63,48 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
         if (bytes[idx] & 0x80 == 0x80) {
             if (bytes[idx] == 0x80) newChar.char = ' ' else newChar.char = bytes[idx] & 0x7F;
 
-            if (bytes[idx + 1] & 0xD0 == 0xD0) {
-                newChar.baseline = @as(Baseline, @bitCast(bytes[idx + 2] & 0x0F));
-                try string.append(newChar);
-                idx += 3;
-            } else {
-                newChar.style = @as(TextStyles, @bitCast(bytes[idx + 1] & 0x0F));
-                try string.append(newChar);
-                idx += 2;
+            switch (bytes[idx + 1]) {
+                0x90...0x9F => |x| { //field type
+                    newChar.fieldType = try FCF.FieldType.fromInt(newChar.char);
+                    newChar.style = @as(TextStyles, @bitCast(x));
+                    try string.append(newChar);
+                    idx += 2;
+                },
+                0x81...0x8F => |x| { // Regular text
+                    newChar.style = @as(TextStyles, @bitCast(x));
+                    try string.append(newChar);
+                    idx += 2;
+                },
+                0xC0...0xDF => { // needs 3rd byte
+                    newChar.baseline = @as(Baseline, @bitCast(bytes[idx + 2] & 0x0F));
+                    try string.append(newChar);
+                    idx += 3;
+                },
+                else => |x| {
+                    std.debug.print("Unknown Text byte sequence:  0x{X:>02}\n", .{x});
+                    try string.append(newChar);
+
+                    idx += 1;
+                },
             }
         } else {
             newChar.char = if (bytes[idx] == 0x0D or bytes[idx] == '\n') ' ' else bytes[idx];
-            try string.append(newChar);
+            // TODO: Make this optional, but not let it affect field definitions
+            //try string.append(newChar);
             idx += 1;
         }
     }
 
     return string;
+}
+test "Decode Field Text" {
+    var gpa = std.testing.allocator;
+    // "CLASS"
+    var numericFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x81, 0x90, 0x0d, 0x0d };
+    var numericField = try decodeText(numericFieldBytes, gpa);
+    defer numericField.deinit();
+    // std.debug.print("{any}\n", .{numericField});
+
+    try std.testing.expectEqual(numericField.pop().fieldType, FCF.FieldType.Numeric);
+    // try std.testing.expectEqual(numericField.items[0].fieldStyle, FCF.FieldStyle.Normal);
 }
