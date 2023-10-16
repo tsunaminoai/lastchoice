@@ -26,7 +26,7 @@ pub const TextCharacter = struct {
     char: u8 = 0,
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
-    fieldType: FCF.FieldType = .Text,
+    fieldType: ?FCF.FieldType = null,
 
     pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = options;
@@ -68,7 +68,7 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
             }
             switch (bytes[idx + 1]) {
                 0x90...0x9F => |x| { //field type
-                    newChar.fieldType = try FCF.FieldType.fromInt(newChar.char);
+                    newChar.fieldType = FCF.FieldType.fromInt(newChar.char).?;
                     newChar.style = @as(TextStyles, @bitCast(x));
                     try string.append(newChar);
                     idx += 2;
@@ -131,4 +131,126 @@ test "Decode Field Text" {
     var boolField = try decodeText(boolFieldBytes, gpa);
     defer boolField.deinit();
     try std.testing.expectEqual(boolField.pop().fieldType, FCF.FieldType.Bool);
+}
+
+const ErrorList = std.ArrayList([]u8);
+
+pub const Lexer = struct {
+    alloc: std.mem.Allocator,
+    src: []const u8,
+    idx: usize = 0,
+    errors: ErrorList,
+
+    pub fn init(src: []const u8, alloc: std.mem.Allocator) Lexer {
+        return Lexer{
+            .alloc = alloc,
+            .src = src,
+            .idx = 0,
+            .errors = ErrorList.init(alloc),
+        };
+    }
+
+    pub fn deinit(self: Lexer) void {
+        self.errors.deinit();
+    }
+
+    pub fn next(self: *Lexer) !?TextCharacter {
+        // const src = self.src;
+        if (self.idx >= self.src.len) {
+            return null;
+        }
+        var textCharacter = TextCharacter{};
+        var currentChar = self.currentUnchecked();
+        switch (currentChar) {
+            0x00...0x80 => |c| { // one byte ascii
+                defer self.advance();
+                if (c == 0x0D) { // new line
+                    textCharacter.char = '\n';
+                } else {
+                    textCharacter.char = c;
+                }
+                return textCharacter;
+            },
+            else => |c| { // multibyte
+                textCharacter.char = c & 0x7F;
+                const byte2 = self.peek();
+                switch (byte2) {
+                    0xD0...0xDF => |b| {
+                        defer self.advanceBy(3);
+                        const byte3 = self.peekN(2);
+
+                        // if (byte3 & 0x01 == 0x01) {
+                        //     // background
+                        // } else {
+                        //     // field
+                        // }
+                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        textCharacter.baseline = @as(Baseline, @bitCast(byte3 & 0x0F));
+
+                        return textCharacter;
+                    },
+                    0x90...0x9F => |b| {
+                        defer self.advanceBy(2);
+
+                        //field definition
+                        if (FCF.FieldType.fromInt(textCharacter.char)) |t| {
+                            textCharacter.fieldType = t;
+                        }
+                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        return textCharacter;
+                    },
+                    0x81...0x8F => |b| {
+                        defer self.advanceBy(2);
+
+                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        return textCharacter;
+                    },
+                    0xC0...0xCF => |b| {
+                        defer self.advanceBy(3);
+                        const byte3 = self.peekN(2);
+                        textCharacter.style = @as(TextStyles, @bitCast(b));
+                        textCharacter.baseline = @as(Baseline, @bitCast(byte3 & 0x0F));
+
+                        return textCharacter;
+                    },
+                    else => return null,
+                }
+            },
+        }
+    }
+
+    fn currentUnchecked(self: Lexer) u8 {
+        return self.src[self.idx];
+    }
+    fn peek(self: Lexer) u8 {
+        return self.src[self.idx + 1];
+    }
+    fn peekN(self: Lexer, count: usize) u8 {
+        return self.src[self.idx + count];
+    }
+    fn advanceBy(self: *Lexer, count: usize) void {
+        self.idx += count;
+    }
+    fn advance(self: *Lexer) void {
+        self.advanceBy(1);
+    }
+};
+
+test "Lexer Text" {
+    var gpa = std.testing.allocator;
+    // "CLASS"
+    var textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x81, 0x90, 0x0d, 0x0d };
+    var lex = Lexer.init(textFieldBytes, gpa);
+    var char = try lex.next();
+    try std.testing.expectEqual(char.?.char, 'C');
+    char = try lex.next();
+    try std.testing.expectEqual(char.?.char, 'L');
+    char = try lex.next();
+    try std.testing.expectEqual(char.?.char, 'A');
+    char = try lex.next();
+    try std.testing.expectEqual(char.?.char, 'S');
+    char = try lex.next();
+    try std.testing.expectEqual(char.?.char, 'S');
+    char = try lex.next();
+    try std.testing.expectEqual(char.?.fieldType.?, .Text);
 }

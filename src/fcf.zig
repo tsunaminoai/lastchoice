@@ -204,8 +204,8 @@ pub const FieldType = enum(u5) {
     Date,
     Time,
     Bool,
-    pub fn fromInt(int: u8) !FieldType {
-        return switch (int & 0x0F) {
+    pub fn fromInt(int: u8) ?FieldType {
+        return switch (int) {
             1 => .Text,
             2 => .Numeric,
             3 => .Date,
@@ -214,13 +214,13 @@ pub const FieldType = enum(u5) {
 
             else => {
                 // std.debug.print("Invalid Field Type: {X:>02}\n", .{int});
-                return .Text;
+                return null;
             },
         };
     }
 };
 
-const Field = struct {
+pub const Field = struct {
     definition: FieldDefinition = undefined,
     fType: FieldType = .Text,
     fStyle: FieldStyle = .Normal,
@@ -267,7 +267,7 @@ fn parseForm(self: *FCF) !void {
             for (0..name.len) |i| {
                 name[i] = chars.items[i].char;
             }
-            var ftype = chars.pop().fieldType;
+            var ftype = chars.pop().fieldType.?;
             var fstyle = FCF.FieldStyle.fromInt(f[4]) catch .Normal;
             var field = Field.init(ftype, fstyle);
 
