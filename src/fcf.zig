@@ -180,12 +180,15 @@ pub const FieldStyle = enum(u4) {
     Italic,
 
     pub fn fromInt(int: u8) !FieldStyle {
-        return switch (int & 0x7F) {
+        return switch (int & 0x0F) {
             0 => .Normal,
             1 => .Underline,
             2 => .Bold,
             4 => .Italic,
-            else => error.InvalidFieldStyle,
+            else => {
+                std.debug.print("Invalid Field Style: {X:>02}\n", .{int});
+                return error.InvalidFieldStyle;
+            },
         };
     }
 };
@@ -197,7 +200,7 @@ pub const FieldType = enum(u5) {
     Time,
     Bool,
     pub fn fromInt(int: u8) !FieldType {
-        return switch (int & 0x7F) {
+        return switch (int & 0x0F) {
             0 => .Text,
             1 => .Numeric,
             2 => .Date,
@@ -257,7 +260,7 @@ fn parseForm(self: *FCF) !void {
                 name[i] = chars.items[i].char;
             }
             var ftype = chars.pop().fieldType;
-            var fstyle = try FCF.FieldStyle.fromInt(f[4]);
+            var fstyle = FCF.FieldStyle.fromInt(f[4]) catch .Normal;
             var field = Field.init(ftype, fstyle);
 
             field.setDefinition(FieldDefinition{
