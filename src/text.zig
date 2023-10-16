@@ -100,11 +100,28 @@ pub fn decodeText(bytes: []const u8, alloc: std.mem.Allocator) !std.ArrayList(Te
 test "Decode Field Text" {
     var gpa = std.testing.allocator;
     // "CLASS"
-    var numericFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x81, 0x90, 0x0d, 0x0d };
+    var textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x81, 0x90, 0x0d, 0x0d };
+    var textField = try decodeText(textFieldBytes, gpa);
+    defer textField.deinit();
+    try std.testing.expectEqual(textField.pop().fieldType, FCF.FieldType.Text);
+
+    var numericFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x82, 0x90, 0x0d, 0x0d };
     var numericField = try decodeText(numericFieldBytes, gpa);
     defer numericField.deinit();
-    // std.debug.print("{any}\n", .{numericField});
-
     try std.testing.expectEqual(numericField.pop().fieldType, FCF.FieldType.Numeric);
-    // try std.testing.expectEqual(numericField.items[0].fieldStyle, FCF.FieldStyle.Normal);
+
+    var dateFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
+    var dateField = try decodeText(dateFieldBytes, gpa);
+    defer dateField.deinit();
+    try std.testing.expectEqual(dateField.pop().fieldType, FCF.FieldType.Date);
+
+    var timeFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x84, 0x90, 0x0d, 0x0d };
+    var timeField = try decodeText(timeFieldBytes, gpa);
+    defer timeField.deinit();
+    try std.testing.expectEqual(timeField.pop().fieldType, FCF.FieldType.Time);
+
+    var boolFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x85, 0x90, 0x0d, 0x0d };
+    var boolField = try decodeText(boolFieldBytes, gpa);
+    defer boolField.deinit();
+    try std.testing.expectEqual(boolField.pop().fieldType, FCF.FieldType.Bool);
 }

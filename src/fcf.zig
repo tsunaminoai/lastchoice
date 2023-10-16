@@ -201,11 +201,11 @@ pub const FieldType = enum(u5) {
     Bool,
     pub fn fromInt(int: u8) !FieldType {
         return switch (int & 0x0F) {
-            0 => .Text,
-            1 => .Numeric,
-            2 => .Date,
-            3 => .Time,
-            4 => .Bool,
+            1 => .Text,
+            2 => .Numeric,
+            3 => .Date,
+            4 => .Time,
+            5 => .Bool,
 
             else => {
                 // std.debug.print("Invalid Field Type: {X:>02}\n", .{int});
