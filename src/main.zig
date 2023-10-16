@@ -41,11 +41,50 @@ pub fn main() anyerror!void {
 
     var filename: ?[]const u8 = null;
 
-    // TODO: add actual options
+    const PrintMatrix = packed struct {
+        header: bool = false,
+        form: bool = false,
+        records: bool = false,
+
+        const Int = blk: {
+            const bits = @typeInfo(@This()).Struct.fields.len;
+            break :blk @Type(.{
+                .Int = .{
+                    .signedness = .unsigned,
+                    .bits = bits,
+                },
+            });
+        };
+
+        fn enableAll() @This() {
+            return @as(@This(), @bitCast(~@as(Int, 0)));
+        }
+
+        fn isSet(pm: @This()) bool {
+            return @as(Int, @bitCast(pm)) == 0;
+        }
+
+        fn add(pm: *@This(), other: @This()) void {
+            pm.* = @as(@This(), @bitCast(@as(Int, @bitCast(pm.*)) | @as(Int, @bitCast(other))));
+        }
+    };
+    var print_matrix: PrintMatrix = .{};
 
     var it = ArgsIterator{ .args = args };
     while (it.next()) |arg| {
-        filename = arg;
+        if (std.mem.startsWith(u8, arg, "-")) blk: {
+            var i: usize = 1;
+            var tmp = PrintMatrix{};
+            while (i < arg.len) : (i += 1) switch (arg[i]) {
+                'a' => tmp = PrintMatrix.enableAll(),
+                'h' => tmp.header = true,
+                'r' => tmp.records = true,
+                'f' => tmp.form = true,
+                else => break :blk,
+            };
+            print_matrix.add(tmp);
+            continue;
+        } else filename = arg;
     }
 
     const file = try std.fs.cwd().openFile(filename.?, .{});
@@ -61,8 +100,11 @@ pub fn main() anyerror!void {
 
     const stdout = std.io.getStdOut().writer();
 
-    try f.printHeader(stdout);
-    try f.printForm(stdout);
-    try f.printRecords(stdout);
+    if (print_matrix.header)
+        try f.printHeader(stdout);
+    if (print_matrix.form)
+        try f.printForm(stdout);
+    if (print_matrix.records)
+        try f.printRecords(stdout);
     try stdout.writeAll("\n");
 }
