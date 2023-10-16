@@ -258,18 +258,26 @@ fn parseForm(self: *FCF) !void {
         var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
         while (tok.next()) |f| {
             var size = std.mem.readIntSliceBig(u16, f[0..2]);
+            var name: []u8 = try self.arena.alloc(u8, 1);
+            var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
 
-            var chars = try FCF.Text.decodeText(f[2..], self.arena);
-            if (chars.items.len == 0) {
-                continue;
+            var lex = Text.Lexer.init(f[2..], self.arena);
+            defer lex.deinit();
+            var fieldType: FieldType = undefined;
+            var i: usize = 0;
+            while (try lex.next()) |char| {
+                try chars.append(char);
+                if (char.fieldType) |ftype| {
+                    fieldType = ftype;
+                    name[i] = 0x00;
+                } else {
+                    name = try self.arena.realloc(name, i + 2);
+                    name[i] = char.char;
+                    i += 1;
+                }
             }
-            var name: []u8 = try self.arena.alloc(u8, chars.items.len);
-            for (0..name.len) |i| {
-                name[i] = chars.items[i].char;
-            }
-            var ftype = chars.pop().fieldType.?;
             var fstyle = FCF.FieldStyle.fromInt(f[4]) catch .Normal;
-            var field = Field.init(ftype, fstyle);
+            var field = Field.init(fieldType, fstyle);
 
             field.setDefinition(FieldDefinition{
                 .size = size,
