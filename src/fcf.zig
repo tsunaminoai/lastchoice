@@ -14,7 +14,6 @@ arena: Allocator,
 data: []const u8,
 
 header: FCF.Header = undefined,
-blocks: []align(1) const FCF.Block = &[0]FCF.Block{},
 empties: std.ArrayList(FCF.Empty) = undefined,
 form: FCF.Form = undefined,
 records: std.ArrayList(FCF.Record) = undefined,
@@ -218,24 +217,38 @@ fn parseForm(self: *FCF) !void {
         .fields = std.ArrayList(Field).init(self.arena),
     };
 
+    var formData = try self.arena.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
+    @memset(formData, 0);
+    for (0..self.form.definition.numBlocks - 1) |i| {
+        if (i == 0) {
+            const d = try reader.readBytesNoEof(120);
+            std.mem.copy(u8, formData, &d);
+        } else {
+            try reader.skipBytes(2, .{});
+            const d = try reader.readBytesNoEof(126);
+            std.mem.copy(u8, formData[120 + (i - 1) * 126 .. 120 + (i * 126)], &d);
+        }
+    }
     // get the fields
-    const formStart = self.header.formDefinitionIndex * BLOCK_SIZE;
-    const formEnd = formStart + (self.form.definition.numBlocks) * BLOCK_SIZE;
-    const fieldDefs = self.data[formStart + 8 .. formEnd - 8];
-    // std.debug.print("{s}\n", .{std.fmt.bytesToHex(fieldDefs[0..306], .upper)});
     {
 
         // TODO: This really needs to handle the nulls as part of the string, unforuntately
-        var tok = std.mem.tokenize(u8, fieldDefs, "\x00");
-        while (tok.next()) |f| {
-            var size = f[0];
-
+        var idx: usize = 0;
+        while (idx < formData.len) {
+            var size: u16 = formData[idx + 1];
+            idx += 2;
             if (size == 0)
-                continue;
+                break;
+            std.log.debug(">> idx: {} size: {} {} {}", .{ idx, size, formData.len, self.form.fields.items.len });
+            if (size + idx > formData.len)
+                break;
+            var fieldBytes = formData[idx .. idx + size];
+            idx += size;
+
             var name: []u8 = try self.arena.alloc(u8, 1);
             var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
 
-            var lex = Text.Lexer.init(f[1..], true);
+            var lex = Text.Lexer.init(fieldBytes, true);
             var fieldType: FieldType = undefined;
             var fieldStyle: ?Text.TextStyles = null;
             var i: usize = 0;
@@ -266,8 +279,6 @@ fn parseForm(self: *FCF) !void {
                 .name = name,
             });
             try self.form.fields.append(field);
-            if (self.form.fields.items.len == self.header.availableDBFields)
-                break;
         }
         if (self.form.fields.items.len != self.header.availableDBFields) {
             std.debug.print("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });

@@ -78,8 +78,13 @@ pub const Lexer = struct {
         }
         var currentChar = self.currentUnchecked();
         var textCharacter = TextCharacter{ .char = currentChar };
-
+        std.log.debug("{X}", .{currentChar});
         switch (currentChar) {
+            // 0xD0 => {
+            //     defer self.advance();
+            //     textCharacter.char = ' ';
+            //     return textCharacter;
+            // },
             0x00...0x80 => |c| { // one byte ascii
                 if (self.isField) {
                     defer self.advanceBy(2);
@@ -97,8 +102,9 @@ pub const Lexer = struct {
                 return textCharacter;
             },
             else => { // multibyte
-                textCharacter.char &= 0x7F;
-                const byte2 = self.peek();
+                textCharacter.char = if (textCharacter.char != 0x0) textCharacter.char & 0x7F else ' ';
+
+                const byte2 = self.peek() orelse return null;
                 switch (byte2) {
                     0xD0...0xDF => {
                         defer self.advanceBy(3);
@@ -110,7 +116,7 @@ pub const Lexer = struct {
 
                         return textCharacter;
                     },
-                    0x90...0x9F => {
+                    0x02, 0x90...0x9F => {
                         defer self.advanceBy(2);
                         // std.log.debug("909f prong> b1: {X:>02} b2: {X:>02}", .{ currentChar, byte2 });
 
@@ -138,9 +144,16 @@ pub const Lexer = struct {
 
                         return textCharacter;
                     },
+                    0x0D => {
+                        defer self.advanceBy(2);
+                        textCharacter.char = ' ';
+                        return textCharacter;
+                    },
                     else => {
-                        // std.log.debug("default prong> b1: {X:>02} b2: {X:>02}", .{ currentChar, byte2 });
-                        return null;
+                        defer self.advanceBy(2);
+
+                        std.log.debug("default prong> b1: {X:>02} b2: {X:>02}", .{ currentChar, byte2 });
+                        return textCharacter;
                     },
                 }
             },
@@ -150,7 +163,9 @@ pub const Lexer = struct {
     fn currentUnchecked(self: Lexer) u8 {
         return self.src[self.idx];
     }
-    fn peek(self: Lexer) u8 {
+    fn peek(self: Lexer) ?u8 {
+        if (self.idx >= self.src.len - 1)
+            return null;
         return self.src[self.idx + 1];
     }
     fn peekN(self: Lexer, count: usize) u8 {
