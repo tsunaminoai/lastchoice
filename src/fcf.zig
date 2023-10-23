@@ -217,6 +217,8 @@ fn parseForm(self: *FCF) !void {
         .fields = std.ArrayList(Field).init(self.arena),
     };
 
+    // this block aggregates all the form data into a sinigle chunk,
+    // so we dont have to worry about block ids and all that
     var formData: []u8 = try self.arena.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
     @memset(formData, 0);
     for (0..self.form.definition.numBlocks) |i| {
@@ -232,56 +234,69 @@ fn parseForm(self: *FCF) !void {
             std.mem.copy(u8, formData[120 + (i - 1) * 126 .. 120 + (i * 126)], &d);
         }
     }
-    std.debug.print("formData = {any}\n", .{formData});
+    std.log.debug("formData = {any}\n", .{formData});
     // get the fields
     {
-
-        // TODO: This really needs to handle the nulls as part of the string, unforuntately
+        // beginning of the data
         var idx: usize = 0;
         while (idx < formData.len) {
+            // get the size of the field in bytes
             var size = formData[idx + 1];
+            // move index to after the the size description
             idx += 2;
+            // if zero size, break
             if (size < 2)
                 break;
+            // size takes into account the size description, so remove that
             size -= 2;
 
+            // dont overrun the data
             if (size + idx > formData.len)
                 break;
 
             std.log.debug(">> Size: {}", .{size});
+
+            // get the bytes for this field
             var fieldBytes = formData[idx .. idx + size];
 
             std.log.debug(">> idx: {} data: {any}\n", .{ idx, fieldBytes });
-
+            // move the index to the next field definitoni
             idx += size;
 
+            // set up name and char array
             var name: []u8 = try self.arena.alloc(u8, 1);
             var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
 
+            // init the "lexer"
             var lex = Text.Lexer.init(fieldBytes, true);
             var fieldType: FieldType = undefined;
             var fieldStyle: ?Text.TextStyles = null;
+
             var i: usize = 0;
+            // lex the string found
             while (try lex.next()) |char| {
                 try chars.append(char);
                 std.log.debug("{} Found {c} {any} ", .{ i, char.char, char });
-
+                // if its a field style, record it
                 if (fieldStyle == null) {
                     fieldStyle = char.style;
                     std.log.debug("with style {any} ", .{char.style});
                 }
+                // if its a field type, record it
                 if (char.fieldType) |ftype| {
                     std.log.debug("with type {s} ", .{@tagName(ftype)});
 
                     fieldType = ftype;
                     continue;
                 }
-
+                // realloc and add to the name
                 name = try self.arena.realloc(name, i + 2);
                 name[i] = char.char;
                 i += 1;
             }
+            // if there were chars found
             if (i > 0) {
+                // create the field and append it
                 var field: Field = undefined;
                 if (fieldStyle) |fs| {
                     field = Field.init(fieldType, fs);
@@ -296,6 +311,7 @@ fn parseForm(self: *FCF) !void {
                 try self.form.fields.append(field);
             }
         }
+        // sanity check
         if (self.form.fields.items.len != self.header.availableDBFields) {
             std.debug.print("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });
             std.debug.print("{any}\n", .{self.form.fields});
