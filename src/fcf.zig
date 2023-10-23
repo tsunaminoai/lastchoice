@@ -217,32 +217,42 @@ fn parseForm(self: *FCF) !void {
         .fields = std.ArrayList(Field).init(self.arena),
     };
 
-    var formData = try self.arena.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
+    var formData: []u8 = try self.arena.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
     @memset(formData, 0);
-    for (0..self.form.definition.numBlocks - 1) |i| {
+    for (0..self.form.definition.numBlocks) |i| {
         if (i == 0) {
+            std.log.debug("Copying form data block 0", .{});
             const d = try reader.readBytesNoEof(120);
             std.mem.copy(u8, formData, &d);
         } else {
+            std.log.debug("Copying form data block {} from {} to {}", .{ i, 120 + (i - 1) * 126, 120 + (i * 126) });
+
             try reader.skipBytes(2, .{});
             const d = try reader.readBytesNoEof(126);
             std.mem.copy(u8, formData[120 + (i - 1) * 126 .. 120 + (i * 126)], &d);
         }
     }
+    std.debug.print("formData = {any}\n", .{formData});
     // get the fields
     {
 
         // TODO: This really needs to handle the nulls as part of the string, unforuntately
         var idx: usize = 0;
         while (idx < formData.len) {
-            var size: u16 = formData[idx + 1];
+            var size = formData[idx + 1];
             idx += 2;
-            if (size == 0)
+            if (size < 2)
                 break;
-            std.log.debug(">> idx: {} size: {} {} {}", .{ idx, size, formData.len, self.form.fields.items.len });
+            size -= 2;
+
             if (size + idx > formData.len)
                 break;
+
+            std.log.debug(">> Size: {}", .{size});
             var fieldBytes = formData[idx .. idx + size];
+
+            std.log.debug(">> idx: {} data: {any}\n", .{ idx, fieldBytes });
+
             idx += size;
 
             var name: []u8 = try self.arena.alloc(u8, 1);
@@ -254,31 +264,37 @@ fn parseForm(self: *FCF) !void {
             var i: usize = 0;
             while (try lex.next()) |char| {
                 try chars.append(char);
+                std.log.debug("{} Found {c} {any} ", .{ i, char.char, char });
 
                 if (fieldStyle == null) {
                     fieldStyle = char.style;
+                    std.log.debug("with style {any} ", .{char.style});
                 }
                 if (char.fieldType) |ftype| {
+                    std.log.debug("with type {s} ", .{@tagName(ftype)});
+
                     fieldType = ftype;
                     continue;
                 }
+
                 name = try self.arena.realloc(name, i + 2);
                 name[i] = char.char;
                 i += 1;
             }
-
-            var field: Field = undefined;
-            if (fieldStyle) |fs| {
-                field = Field.init(fieldType, fs);
-            } else {
-                field = Field.init(fieldType, .{ .normal = true });
+            if (i > 0) {
+                var field: Field = undefined;
+                if (fieldStyle) |fs| {
+                    field = Field.init(fieldType, fs);
+                } else {
+                    field = Field.init(fieldType, .{ .normal = true });
+                }
+                field.setDefinition(FieldDefinition{
+                    .size = size,
+                    .chars = chars,
+                    .name = name,
+                });
+                try self.form.fields.append(field);
             }
-            field.setDefinition(FieldDefinition{
-                .size = size,
-                .chars = chars,
-                .name = name,
-            });
-            try self.form.fields.append(field);
         }
         if (self.form.fields.items.len != self.header.availableDBFields) {
             std.debug.print("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });

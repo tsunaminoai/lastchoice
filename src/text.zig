@@ -13,6 +13,12 @@ pub const TextStyles = packed struct(u8) {
     pub fn fromInt(int: u8) TextStyles {
         return @as(TextStyles, @bitCast(int));
     }
+    pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = options;
+        _ = fmt;
+
+        return std.fmt.format(writer, "N:{} U:{} B:{} I:{}", .{ self.normal, self.underline, self.bold, self.italic });
+    }
 };
 
 // Baseline is a packed struct that represents the various baselines that can be applied to a character.
@@ -60,25 +66,23 @@ pub const Lexer = struct {
     isField: bool = false,
 
     pub fn init(src: []const u8, isfield: bool) Lexer {
-        return Lexer{
+        var lex = Lexer{
             .src = src,
             .idx = 0,
             .isField = isfield,
         };
-    }
-
-    pub fn deinit(self: Lexer) void {
-        self.errors.deinit();
+        std.debug.print("Initializing Lexer as {any}\n", .{lex});
+        return lex;
     }
 
     pub fn next(self: *Lexer) !?TextCharacter {
-        // const src = self.src;
+        std.debug.print("Lexer:next() idx: {} srcLen: {}\n", .{ self.idx, self.src.len });
+
         if (self.idx >= self.src.len) {
             return null;
         }
         var currentChar = self.currentUnchecked();
         var textCharacter = TextCharacter{ .char = currentChar };
-        std.log.debug("{X}", .{currentChar});
         switch (currentChar) {
             // 0xD0 => {
             //     defer self.advance();
@@ -93,7 +97,8 @@ pub const Lexer = struct {
                 }
 
                 switch (c) {
-                    0x00...0x20 => textCharacter.char = ' ',
+                    0x00 => return null,
+                    0x1...0x20 => textCharacter.char = '_',
                     0x80 => textCharacter.char = ' ',
                     else => {},
                 }
@@ -102,7 +107,7 @@ pub const Lexer = struct {
                 return textCharacter;
             },
             else => { // multibyte
-                textCharacter.char = if (textCharacter.char != 0x0) textCharacter.char & 0x7F else ' ';
+                textCharacter.char = if (textCharacter.char != 0x0) textCharacter.char & 0x7F else '_';
 
                 const byte2 = self.peek() orelse return null;
                 switch (byte2) {
@@ -116,7 +121,7 @@ pub const Lexer = struct {
 
                         return textCharacter;
                     },
-                    0x02, 0x90...0x9F => {
+                    0x90...0x9F => {
                         defer self.advanceBy(2);
                         // std.log.debug("909f prong> b1: {X:>02} b2: {X:>02}", .{ currentChar, byte2 });
 
@@ -181,9 +186,10 @@ pub const Lexer = struct {
 
 test "Lexer Text" {
     var gpa = std.testing.allocator;
+    _ = gpa;
     // "CLASS"
     var textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
-    var lex = Lexer.init(textFieldBytes, gpa);
+    var lex = Lexer.init(textFieldBytes, true);
     var char = try lex.next();
     try std.testing.expectEqual(char.?.char, 'C');
     char = try lex.next();
