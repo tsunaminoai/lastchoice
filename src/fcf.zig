@@ -14,12 +14,12 @@ arena: Allocator,
 data: []const u8,
 
 header: FCF.Header = undefined,
-blocks: []align(1) const FCF.Block = &[0]FCF.Block{},
 empties: std.ArrayList(FCF.Empty) = undefined,
 form: FCF.Form = undefined,
 records: std.ArrayList(FCF.Record) = undefined,
 
 index: usize = 0,
+stream: std.io.FixedBufferStream([]const u8) = undefined,
 
 const magicString = "\x0cGERBILDB3   \x00";
 const extension = "FOL";
@@ -31,9 +31,9 @@ pub const Error = error{ InvalidMagic, EndOfStream, UnhandledBlockType, BadTextC
 pub const BLOCK_SIZE = 128;
 
 pub fn parse(self: *FCF) !void {
-    var stream = std.io.fixedBufferStream(self.data);
+    self.stream = std.io.fixedBufferStream(self.data);
 
-    const reader = stream.reader();
+    const reader = self.stream.reader();
 
     self.header = try reader.readStruct(FCF.Header);
 
@@ -42,74 +42,9 @@ pub fn parse(self: *FCF) !void {
         return error.InvalidMagic;
     }
 
-    // get the formdata
-    try stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
-    var formDef = try reader.readStruct(FCF.FormDefinition);
+    try self.parseForm();
 
-    self.form = Form{
-        .lines = std.mem.bigToNative(u16, formDef.lines),
-        .length = std.mem.bigToNative(u16, formDef.length),
-        .fields = std.ArrayList(FieldDefinition).init(self.arena),
-    };
-
-    // get the fields
-    const fieldDefs = self.data[(self.header.formDefinitionIndex * BLOCK_SIZE) + 8 .. (self.header.formDefinitionIndex * BLOCK_SIZE) + (2 * self.header.formLength)];
-    {
-        var tok = std.mem.tokenize(u8, fieldDefs, "\x0D\x0D");
-        while (tok.next()) |f| {
-            var chars = try FCF.Text.decodeText(f[2..], self.arena);
-            var name: []u8 = try self.arena.alloc(u8, chars.items.len);
-            for (0..name.len) |i| {
-                name[i] = chars.items[i].char;
-            }
-            var fdef = FieldDefinition{
-                .size = std.mem.readIntSliceBig(u16, f[0..2]),
-                .chars = chars,
-                .name = name,
-            };
-            try self.form.fields.append(fdef);
-            if (self.form.fields.items.len >= self.header.availableDBFields) break;
-        }
-    }
-
-    self.records = std.ArrayList(FCF.Record).init(self.arena);
-    {
-        const dataStartPosition = BLOCK_SIZE * (self.header.formDefinitionIndex + formDef.numBlocks);
-        var dataWindow = std.mem.window(u8, self.data[dataStartPosition..], BLOCK_SIZE, BLOCK_SIZE);
-
-        while (dataWindow.next()) |block| {
-            // skip data continuation, we'll handle that below
-            if (block[0] == '\x01') continue;
-            var numBlocks = std.mem.readIntLittle(u16, block[2..4]);
-            var extendBy = if (numBlocks > 1) numBlocks else 0;
-            const recordBytes = block.ptr[4 .. 128 - 4 + (extendBy * BLOCK_SIZE)];
-
-            var record = Record{
-                .fields = std.ArrayList(FCF.FieldDefinition).init(self.arena),
-            };
-
-            var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
-            while (tok.next()) |recordField| {
-                var chars = try FCF.Text.decodeText(recordField, self.arena);
-                if (chars.items.len == 0 or recordField.len == 0) {
-                    chars.deinit();
-                    continue;
-                }
-
-                var name: []u8 = try self.arena.alloc(u8, chars.items.len);
-                for (0..name.len) |i| {
-                    name[i] = chars.items[i].char;
-                }
-                var field = FieldDefinition{
-                    .size = 0,
-                    .chars = chars,
-                    .name = name,
-                };
-                try record.fields.append(field);
-            }
-            try self.records.append(record);
-        }
-    }
+    try self.parseRecords();
 }
 
 pub fn printForm(self: *FCF, writer: anytype) !void {
@@ -119,10 +54,10 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
     try writer.print("  Lines: {}\n", .{form.lines});
     try writer.print("  Length: {}\n", .{form.length});
 
-    try writer.print("=" ** 20 ++ "Fields" ++ "=" ** 20 ++ "\n", .{});
+    try writer.print("=" ** 20 ++ " Fields " ++ "=" ** 20 ++ "\n", .{});
 
     for (form.fields.items) |field| {
-        try writer.print("{s}\t({})\n", .{ field.name, field.size });
+        try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, field.fType.toStr() });
     }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
@@ -164,12 +99,14 @@ pub fn printHeader(self: *FCF, writer: anytype) !void {
 
 pub fn printRecords(self: *FCF, writer: anytype) !void {
     var idx: u16 = 0;
+    try writer.writeAll("=" ** 20 ++ " RECORDS " ++ "=" ** 20 ++ "\n");
     for (self.records.items) |record| {
         idx += 1;
         try writer.print("| ", .{});
 
-        for (record.fields.items) |field|
-            try writer.print(" {s} |", .{field});
+        for (record.fields.items) |field| {
+            try writer.print(" {s} |", .{field.name});
+        }
 
         try writer.writeAll("\n");
     }
@@ -198,6 +135,238 @@ const FieldDefinition = struct {
         try writer.print("{s}", .{trimmed});
     }
 };
+
+pub const FieldStyle = enum(u4) {
+    Normal,
+    Underline,
+    Bold,
+    Italic,
+
+    pub fn fromInt(int: u8) !FieldStyle {
+        return switch (int & 0x0F) {
+            0 => .Normal,
+            1 => .Underline,
+            2 => .Bold,
+            4 => .Italic,
+            else => {
+                std.debug.print("Invalid Field Style: {X:>02}\n", .{int});
+                return error.InvalidFieldStyle;
+            },
+        };
+    }
+};
+
+pub const FieldType = enum(u5) {
+    Text = 1,
+    Numeric = 2,
+    Date = 3,
+    Time = 4,
+    Bool = 5,
+    _,
+    pub fn fromInt(int: u8) ?FieldType {
+        return switch (int) {
+            1 => .Text,
+            2 => .Numeric,
+            3 => .Date,
+            4 => .Time,
+            5 => .Bool,
+            else => null,
+        };
+    }
+    pub fn toStr(self: @This()) []const u8 {
+        return switch (self) {
+            .Text => "Text",
+            .Numeric => "Number",
+            .Date => "Date",
+            .Time => "Time",
+            .Bool => "Bool",
+            else => "Unknown",
+        };
+    }
+};
+
+pub const Field = struct {
+    definition: FieldDefinition = undefined,
+    fType: FieldType = .Text,
+    fStyle: Text.TextStyles = .{ .normal = true },
+
+    const Self = @This();
+
+    pub fn init(ftype: FieldType, style: Text.TextStyles) Self {
+        return Self{
+            .fType = ftype,
+            .fStyle = style,
+        };
+    }
+    pub fn setDefinition(self: *Self, def: FieldDefinition) void {
+        self.definition = def;
+    }
+};
+
+fn parseForm(self: *FCF) !void {
+    // get the formdata
+    try self.stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
+    var reader = self.stream.reader();
+
+    var formDef = try reader.readStruct(FCF.FormDefinition);
+
+    self.form = Form{
+        .definition = formDef,
+        .lines = std.mem.bigToNative(u16, formDef.lines),
+        .length = std.mem.bigToNative(u16, formDef.length),
+        .fields = std.ArrayList(Field).init(self.arena),
+    };
+
+    // this block aggregates all the form data into a sinigle chunk,
+    // so we dont have to worry about block ids and all that
+    var formData: []u8 = try self.arena.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
+    @memset(formData, 0);
+    for (0..self.form.definition.numBlocks) |i| {
+        if (i == 0) {
+            std.log.debug("Copying form data block 0", .{});
+            const d = try reader.readBytesNoEof(120);
+            std.mem.copy(u8, formData, &d);
+        } else {
+            std.log.debug("Copying form data block {} from {} to {}", .{ i, 120 + (i - 1) * 126, 120 + (i * 126) });
+
+            try reader.skipBytes(2, .{});
+            const d = try reader.readBytesNoEof(126);
+            std.mem.copy(u8, formData[120 + (i - 1) * 126 .. 120 + (i * 126)], &d);
+        }
+    }
+    std.log.debug("formData = {any}\n", .{formData});
+    // get the fields
+    {
+        // beginning of the data
+        var idx: usize = 0;
+        while (idx < formData.len) {
+            // get the size of the field in bytes
+            var size = formData[idx + 1];
+            // move index to after the the size description
+            idx += 2;
+            // if zero size, break
+            if (size < 2)
+                break;
+            // size takes into account the size description, so remove that
+            size -= 2;
+
+            // dont overrun the data
+            if (size + idx > formData.len)
+                break;
+
+            std.log.debug(">> Size: {}", .{size});
+
+            // get the bytes for this field
+            var fieldBytes = formData[idx .. idx + size];
+
+            std.log.debug(">> idx: {} data: {any}\n", .{ idx, fieldBytes });
+            // move the index to the next field definitoni
+            idx += size;
+
+            // set up name and char array
+            var name: []u8 = try self.arena.alloc(u8, 1);
+            var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
+
+            // init the "lexer"
+            var lex = Text.Lexer.init(fieldBytes, true);
+            var fieldType: FieldType = undefined;
+            var fieldStyle: ?Text.TextStyles = null;
+
+            var i: usize = 0;
+            // lex the string found
+            while (try lex.next()) |char| {
+                try chars.append(char);
+                std.log.debug("{} Found {c} {any} ", .{ i, char.char, char });
+                // if its a field style, record it
+                if (fieldStyle == null) {
+                    fieldStyle = char.style;
+                    std.log.debug("with style {any} ", .{char.style});
+                }
+                // if its a field type, record it
+                if (char.fieldType) |ftype| {
+                    std.log.debug("with type {s} ", .{@tagName(ftype)});
+
+                    fieldType = ftype;
+                    continue;
+                }
+                // realloc and add to the name
+                name = try self.arena.realloc(name, i + 2);
+                name[i] = char.char;
+                i += 1;
+            }
+            // if there were chars found
+            if (i > 0) {
+                // create the field and append it
+                var field: Field = undefined;
+                if (fieldStyle) |fs| {
+                    field = Field.init(fieldType, fs);
+                } else {
+                    field = Field.init(fieldType, .{ .normal = true });
+                }
+                field.setDefinition(FieldDefinition{
+                    .size = size,
+                    .chars = chars,
+                    .name = name,
+                });
+                try self.form.fields.append(field);
+            }
+        }
+        // sanity check
+        if (self.form.fields.items.len != self.header.availableDBFields) {
+            std.debug.print("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });
+            std.debug.print("{any}\n", .{self.form.fields});
+            return error.NotAllFieldsParsed;
+        }
+    }
+}
+
+pub fn parseRecords(self: *FCF) !void {
+    self.records = std.ArrayList(FCF.Record).init(self.arena);
+    {
+        const dataStartPosition = BLOCK_SIZE * (self.header.formDefinitionIndex + self.form.definition.numBlocks);
+        var dataWindow = std.mem.window(u8, self.data[dataStartPosition..], BLOCK_SIZE, BLOCK_SIZE);
+
+        while (dataWindow.next()) |block| {
+            // skip data continuation, we'll handle that below
+            if (block[0] == '\x01') continue;
+            var numBlocks = std.mem.readIntLittle(u16, block[2..4]);
+            var extendBy = if (numBlocks > 1) numBlocks else 0;
+            const recordBytes = block.ptr[4 .. 128 - 4 + (extendBy * BLOCK_SIZE)];
+
+            var record = Record{
+                .fields = std.ArrayList(FCF.FieldDefinition).init(self.arena),
+            };
+
+            var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
+            while (tok.next()) |recordField| {
+                var lex = Text.Lexer.init(recordField, false);
+                var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
+                var name: []u8 = try self.arena.alloc(u8, 1);
+
+                var i: usize = 0;
+
+                while (try lex.next()) |char| {
+                    try chars.append(char);
+
+                    name = try self.arena.realloc(name, i + 2);
+                    name[i] = char.char;
+                    i += 1;
+                }
+
+                var field = FieldDefinition{
+                    .size = 0,
+                    .chars = chars,
+                    .name = name,
+                };
+                try record.fields.append(field);
+                if (record.fields.items.len == self.header.availableDBFields)
+                    break;
+            }
+            try self.records.append(record);
+        }
+    }
+}
+
 // TODO: docs
 
 const FormDefinition = extern struct {
@@ -215,7 +384,12 @@ const FormDefinition = extern struct {
 };
 
 const Form = struct {
+    definition: FormDefinition,
     lines: u16,
     length: u16,
-    fields: std.ArrayList(FieldDefinition),
+    fields: std.ArrayList(Field),
 };
+
+test {
+    _ = std.testing.refAllDecls(@This());
+}
