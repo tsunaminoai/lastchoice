@@ -1,5 +1,5 @@
 const std = @import("std");
-const FCF = @import("firstzig");
+const FCF = @import("fcf.zig");
 
 var global_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = global_allocator.allocator();
@@ -45,6 +45,7 @@ pub fn main() anyerror!void {
         header: bool = false,
         form: bool = false,
         records: bool = false,
+        json: bool = false,
 
         const Int = blk: {
             const bits = @typeInfo(@This()).Struct.fields.len;
@@ -78,6 +79,7 @@ pub fn main() anyerror!void {
             while (i < arg.len) : (i += 1) switch (arg[i]) {
                 'a' => tmp = PrintMatrix.enableAll(),
                 'h' => tmp.header = true,
+                'j' => tmp.json = true,
                 'r' => tmp.records = true,
                 'f' => tmp.form = true,
                 else => break :blk,
@@ -86,6 +88,7 @@ pub fn main() anyerror!void {
             continue;
         } else filename = arg;
     }
+
     const fname = filename orelse fatal("No input file specificed.", .{});
     const file = try std.fs.cwd().openFile(fname, .{});
     defer file.close();
@@ -106,5 +109,8 @@ pub fn main() anyerror!void {
         try f.printForm(stdout);
     if (print_matrix.records)
         try f.printRecords(stdout);
+    if (print_matrix.json) {
+        try f.printJSON(stdout);
+    }
     try stdout.writeAll("\n");
 }

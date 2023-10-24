@@ -1,0 +1,17 @@
+.{
+    .name = "my-project",
+    .version = "1.0.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+        "src/",
+    },
+    .dependencies = .{
+        .json = .{
+            .url = "https://github.com/getty-zig/json/archive/86cdb8c6eff6b1b6273b9dac6d6446fede4e11a7.tar.gz",
+            .hash = "12206721262e96803a9cdd2c58c2969ba2beb63306a85377aaeecd16fd8a177da3e6",
+        },
+    },
+}

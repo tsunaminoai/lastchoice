@@ -3,6 +3,7 @@ const Header = @import("header.zig").Header;
 const Block = @import("block.zig");
 const Empty = @import("block.zig").Empty;
 const Text = @import("text.zig");
+const JSON = @import("json");
 
 const Allocator = std.mem.Allocator;
 
@@ -367,6 +368,13 @@ pub fn parseRecords(self: *FCF) !void {
             try self.records.append(record);
         }
     }
+}
+
+pub fn printJSON(self: *FCF, writer: anytype) !void {
+    var out = try JSON.toPrettySlice(self.arena, self.records);
+    defer self.arena.free(out);
+
+    try writer.print("{s}\n", .{out});
 }
 
 // TODO: docs

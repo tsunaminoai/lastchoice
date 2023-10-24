@@ -71,12 +71,12 @@ pub const Lexer = struct {
             .idx = 0,
             .isField = isfield,
         };
-        std.debug.print("Initializing Lexer as {any}\n", .{lex});
+        std.log.debug("Initializing Lexer as {any}\n", .{lex});
         return lex;
     }
 
     pub fn next(self: *Lexer) !?TextCharacter {
-        std.debug.print("Lexer:next() idx: {} srcLen: {}\n", .{ self.idx, self.src.len });
+        std.log.debug("Lexer:next() idx: {} srcLen: {}\n", .{ self.idx, self.src.len });
 
         if (self.idx >= self.src.len) {
             return null;
