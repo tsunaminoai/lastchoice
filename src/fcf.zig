@@ -339,7 +339,8 @@ pub fn parseRecords(self: *FCF) !void {
 
             var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
             while (tok.next()) |recordField| {
-                var lex = Text.Lexer.init(recordField, false);
+                if (recordField.len < 2) break;
+                var lex = Text.Lexer.init(recordField[2..], false);
                 var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
                 var name: []u8 = try self.arena.alloc(u8, 1);
 
@@ -352,11 +353,12 @@ pub fn parseRecords(self: *FCF) !void {
                     name[i] = char.char;
                     i += 1;
                 }
+                if (i == 0) break;
 
                 var field = FieldDefinition{
                     .size = 0,
                     .chars = chars,
-                    .name = name,
+                    .name = @constCast(std.mem.trim(u8, name.ptr[0..i], " ")),
                 };
                 try record.fields.append(field);
                 if (record.fields.items.len == self.header.availableDBFields)
