@@ -98,7 +98,7 @@ pub const Lexer = struct {
 
                 switch (c) {
                     0x00 => return null,
-                    0x1...0x20 => textCharacter.char = '_',
+                    0x1...0x20 => textCharacter.char = ' ',
                     0x80 => textCharacter.char = ' ',
                     else => {},
                 }
@@ -107,7 +107,7 @@ pub const Lexer = struct {
                 return textCharacter;
             },
             else => { // multibyte
-                textCharacter.char = if (textCharacter.char != 0x0) textCharacter.char & 0x7F else '_';
+                textCharacter.char = if (textCharacter.char != 0x0) textCharacter.char & 0x7F else ' ';
 
                 const byte2 = self.peek() orelse return null;
                 switch (byte2) {
