@@ -7,13 +7,19 @@ LastChoice is a cli application to recover data from a FirstChoice database.
 ## Goals
 
 - [x] Read a FirstChoice database
+- [x] Read out to CSV
 - [ ] Read out to JSON
-- [ ] Read out to CSV
 
 ## Usage
 
 ```bash
-fzp <path-to-database>
+fzp (options) <path-to-database>
+options:
+-h display header information
+-f display field information
+-r display records
+-c display records as CSV with header row
+-o <path-to-output> write records to file at path
 ```
 
 ## Why?

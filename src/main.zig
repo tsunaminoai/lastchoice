@@ -6,9 +6,14 @@ const gpa = global_allocator.allocator();
 
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
     ret: {
-        const msg = std.fmt.allocPrint(gpa, format ++ "\n", args) catch break :ret;
+        const msg = std.fmt.allocPrint(
+            gpa,
+            "Error: " ++ format ++ "\n" ++ help,
+            args,
+        ) catch break :ret;
         std.io.getStdErr().writeAll(msg) catch {};
     }
+
     std.process.exit(1);
 }
 
@@ -25,9 +30,29 @@ const ArgsIterator = struct {
     }
 
     fn nextOrFatal(it: *@This()) []const u8 {
-        return it.next() orelse fatal("expected parameter after {s}", .{it.args[it.i - 1]});
+        return it.next() orelse fatal(
+            "expected parameter after {s}",
+            .{it.args[it.i - 1]},
+        );
     }
 };
+
+const help =
+    \\
+    \\ Usage: lastchoice (OPTIONS) FirstChoiceDB.FOL
+    \\
+    \\ By default, without specifiying options, the program will only read in and parse the input FOL file, failing if it cannot.
+    \\
+    \\ Options:
+    \\   -h | Show this help
+    \\   -a | Print the header and form information as well as the entirity of the records to stdout
+    \\   -d | Print the database header information (db file info)
+    \\   -f | Print the database form information (db schema)
+    \\   -r | Print the records to std out
+    \\   -c | Format file output as csv
+    \\   -o  <filename.ext> | Save the output to a file with format elsewhere specified
+    \\
+;
 
 pub fn main() anyerror!void {
     var arena_allocator = std.heap.ArenaAllocator.init(gpa);
@@ -41,6 +66,8 @@ pub fn main() anyerror!void {
 
     var filename: ?[]const u8 = null;
     var outfile: ?[]u8 = null;
+    const stdout = std.io.getStdOut().writer();
+
     const PrintMatrix = packed struct {
         header: bool = false,
         form: bool = false,
@@ -58,7 +85,10 @@ pub fn main() anyerror!void {
         };
 
         fn enableAll() @This() {
-            return @as(@This(), @bitCast(~@as(Int, 0)));
+            return @as(@This(), @bitCast(~@as(
+                Int,
+                0,
+            )));
         }
 
         fn isSet(pm: @This()) bool {
@@ -66,7 +96,16 @@ pub fn main() anyerror!void {
         }
 
         fn add(pm: *@This(), other: @This()) void {
-            pm.* = @as(@This(), @bitCast(@as(Int, @bitCast(pm.*)) | @as(Int, @bitCast(other))));
+            pm.* = @as(
+                @This(),
+                @bitCast(@as(
+                    Int,
+                    @bitCast(pm.*),
+                ) | @as(
+                    Int,
+                    @bitCast(other),
+                )),
+            );
         }
     };
     var print_matrix: PrintMatrix = .{};
@@ -78,7 +117,11 @@ pub fn main() anyerror!void {
             var tmp = PrintMatrix{};
             while (i < arg.len) : (i += 1) switch (arg[i]) {
                 'a' => tmp = PrintMatrix.enableAll(),
-                'h' => tmp.header = true,
+                'h' => {
+                    try stdout.print(help ++ "\n", .{});
+                    std.process.exit(0);
+                },
+                'd' => tmp.header = true,
                 'c' => tmp.csv = true,
                 'r' => tmp.records = true,
                 'f' => tmp.form = true,
@@ -95,19 +138,26 @@ pub fn main() anyerror!void {
         } else filename = arg;
     }
 
-    const fname = filename orelse fatal("No input file specificed.", .{});
+    const fname = filename orelse fatal(
+        "No input file specificed.",
+        .{},
+    );
     const file = try std.fs.cwd().openFile(fname, .{});
     defer file.close();
-    const data = try file.readToEndAlloc(arena, std.math.maxInt(u32));
+    const data = try file.readToEndAlloc(
+        arena,
+        std.math.maxInt(u32),
+    );
 
     var f = FCF{ .arena = arena, .data = data };
 
     f.parse() catch |err| switch (err) {
-        error.InvalidMagic => fatal("Invalid FirstChoice database file - Magic number invalid", .{}),
+        error.InvalidMagic => fatal(
+            "Invalid FirstChoice database file - Magic number invalid",
+            .{},
+        ),
         else => |e| return e,
     };
-
-    const stdout = std.io.getStdOut().writer();
 
     if (print_matrix.header)
         try f.printHeader(stdout);
@@ -142,6 +192,9 @@ pub fn createOutputFile(filename: []const u8) !std.fs.File {
         else => return err,
     };
 
-    std.debug.print("Writing to \"{s}\" ({any})", .{ filename, outfile.mode() });
+    std.debug.print(
+        "Writing to \"{s}\" ({any})",
+        .{ filename, outfile.mode() },
+    );
     return outfile;
 }

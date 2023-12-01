@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) void {
     // });
 
     const exe = b.addExecutable(.{
-        .name = "fzp",
+        .name = "lastchoice",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
