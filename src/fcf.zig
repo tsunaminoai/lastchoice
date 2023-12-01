@@ -3,7 +3,6 @@ const Header = @import("header.zig").Header;
 const Block = @import("block.zig");
 const Empty = @import("block.zig").Empty;
 const Text = @import("text.zig");
-const JSON = @import("json");
 
 const Allocator = std.mem.Allocator;
 
@@ -115,6 +114,7 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
 // TODO: docs
 
 const Record = struct {
+    id: u32,
     fields: std.ArrayList(FieldDefinition),
 };
 // TODO: docs
@@ -209,7 +209,7 @@ fn parseForm(self: *FCF) !void {
     try self.stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
     var reader = self.stream.reader();
 
-    var formDef = try reader.readStruct(FCF.FormDefinition);
+    const formDef = try reader.readStruct(FCF.FormDefinition);
 
     self.form = Form{
         .definition = formDef,
@@ -258,7 +258,7 @@ fn parseForm(self: *FCF) !void {
             std.log.debug(">> Size: {}", .{size});
 
             // get the bytes for this field
-            var fieldBytes = formData[idx .. idx + size];
+            const fieldBytes = formData[idx .. idx + size];
 
             std.log.debug(">> idx: {} data: {any}\n", .{ idx, fieldBytes });
             // move the index to the next field definitoni
@@ -326,15 +326,16 @@ pub fn parseRecords(self: *FCF) !void {
     {
         const dataStartPosition = BLOCK_SIZE * (self.header.formDefinitionIndex + self.form.definition.numBlocks);
         var dataWindow = std.mem.window(u8, self.data[dataStartPosition..], BLOCK_SIZE, BLOCK_SIZE);
-
+        var id: u32 = 1;
         while (dataWindow.next()) |block| {
             // skip data continuation, we'll handle that below
             if (block[0] == '\x01') continue;
-            var numBlocks = std.mem.readIntLittle(u16, block[2..4]);
-            var extendBy = if (numBlocks > 1) numBlocks else 0;
+            const numBlocks = std.mem.readInt(u16, block[2..4], .little);
+            const extendBy = if (numBlocks > 1) numBlocks else 0;
             const recordBytes = block.ptr[4 .. 128 - 4 + (extendBy * BLOCK_SIZE)];
 
             var record = Record{
+                .id = id,
                 .fields = std.ArrayList(FCF.FieldDefinition).init(self.arena),
             };
 
@@ -356,7 +357,7 @@ pub fn parseRecords(self: *FCF) !void {
                 }
                 if (i == 0) break;
 
-                var field = FieldDefinition{
+                const field = FieldDefinition{
                     .size = 0,
                     .chars = chars,
                     .name = @constCast(std.mem.trim(u8, name.ptr[0..i], " ")),
@@ -366,15 +367,26 @@ pub fn parseRecords(self: *FCF) !void {
                     break;
             }
             try self.records.append(record);
+            id += 1;
         }
     }
 }
 
-pub fn printJSON(self: *FCF, writer: anytype) !void {
-    var out = try JSON.toPrettySlice(self.arena, self.records);
-    defer self.arena.free(out);
-
-    try writer.print("{s}\n", .{out});
+pub fn toCSV(self: *FCF, writer: anytype) !void {
+    var out = std.ArrayList(u8).init(self.arena);
+    defer out.deinit();
+    var fieldCount: usize = 0;
+    for (self.form.fields.items) |f| {
+        try writer.print("\"{s} ({s})\", ", .{ f.definition.name, f.fType.toStr() });
+        fieldCount += 1;
+    }
+    try writer.writeAll("\n");
+    for (self.records.items) |r| {
+        for (r.fields.items) |f| {
+            try writer.print("\"{}\", ", .{f});
+        }
+        try writer.writeAll("\n");
+    }
 }
 
 // TODO: docs
@@ -402,4 +414,13 @@ const Form = struct {
 
 test {
     _ = std.testing.refAllDecls(@This());
+}
+
+test "json" {
+    var out = std.ArrayList(u8).init(std.testing.allocator);
+    defer out.deinit();
+
+    const T = struct { a: i32, b: []const u8 };
+    try std.json.stringify(T{ .a = 123, .b = "xy" }, .{}, out.writer());
+    try std.testing.expectEqualSlices(u8, "{\"a\":123,\"b\":\"xy\"}", out.items);
 }

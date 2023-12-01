@@ -51,9 +51,9 @@ pub const TextCharacter = struct {
 };
 
 test "TextCharacter" {
-    var char = TextCharacter{ .char = 'a' };
-    var expected: u8 = 'a';
-    var actual = char.char;
+    const char = TextCharacter{ .char = 'a' };
+    const expected: u8 = 'a';
+    const actual = char.char;
 
     try expect(expected == actual);
 }
@@ -66,7 +66,7 @@ pub const Lexer = struct {
     isField: bool = false,
 
     pub fn init(src: []const u8, isfield: bool) Lexer {
-        var lex = Lexer{
+        const lex = Lexer{
             .src = src,
             .idx = 0,
             .isField = isfield,
@@ -81,7 +81,7 @@ pub const Lexer = struct {
         if (self.idx >= self.src.len) {
             return null;
         }
-        var currentChar = self.currentUnchecked();
+        const currentChar = self.currentUnchecked();
         var textCharacter = TextCharacter{ .char = currentChar };
         switch (currentChar) {
             // 0xD0 => {
@@ -185,10 +185,10 @@ pub const Lexer = struct {
 };
 
 test "Lexer Text" {
-    var gpa = std.testing.allocator;
+    const gpa = std.testing.allocator;
     _ = gpa;
     // "CLASS"
-    var textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
+    const textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
     var lex = Lexer.init(textFieldBytes, true);
     var char = try lex.next();
     try std.testing.expectEqual(char.?.char, 'C');

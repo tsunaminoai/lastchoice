@@ -40,12 +40,12 @@ pub fn main() anyerror!void {
     if (args.len == 0) fatal("No args", .{});
 
     var filename: ?[]const u8 = null;
-
+    var outfile: ?[]u8 = null;
     const PrintMatrix = packed struct {
         header: bool = false,
         form: bool = false,
         records: bool = false,
-        json: bool = false,
+        csv: bool = false,
 
         const Int = blk: {
             const bits = @typeInfo(@This()).Struct.fields.len;
@@ -79,9 +79,15 @@ pub fn main() anyerror!void {
             while (i < arg.len) : (i += 1) switch (arg[i]) {
                 'a' => tmp = PrintMatrix.enableAll(),
                 'h' => tmp.header = true,
-                'j' => tmp.json = true,
+                'c' => tmp.csv = true,
                 'r' => tmp.records = true,
                 'f' => tmp.form = true,
+                'o' => {
+                    if (it.next()) |file| {
+                        outfile = try arena.alloc(u8, file.len);
+                        @memcpy(outfile.?.ptr, file);
+                    }
+                },
                 else => break :blk,
             };
             print_matrix.add(tmp);
@@ -109,8 +115,33 @@ pub fn main() anyerror!void {
         try f.printForm(stdout);
     if (print_matrix.records)
         try f.printRecords(stdout);
-    if (print_matrix.json) {
-        try f.printJSON(stdout);
+    if (print_matrix.csv) {
+        var writer = stdout;
+        var csvFile: ?std.fs.File = null;
+        if (outfile) |o| {
+            csvFile = try createOutputFile(o);
+            writer = csvFile.?.writer();
+        }
+        try f.toCSV(writer);
+        if (csvFile) |c|
+            c.close();
     }
     try stdout.writeAll("\n");
+}
+
+pub fn createOutputFile(filename: []const u8) !std.fs.File {
+    var outfile: std.fs.File = undefined;
+    outfile = std.fs.cwd().openFile(filename, .{
+        .mode = .write_only,
+    }) catch |err| switch (err) {
+        error.FileNotFound => {
+            return try std.fs.cwd().createFile(filename, .{
+                .truncate = true,
+            });
+        },
+        else => return err,
+    };
+
+    std.debug.print("Writing to \"{s}\" ({any})", .{ filename, outfile.mode() });
+    return outfile;
 }
