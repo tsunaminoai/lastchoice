@@ -5,7 +5,7 @@
       "name": "(gdb) Launch",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/zig-out/bin/fzp",
+      "program": "${workspaceFolder}/zig-out/bin/lastchoice",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
