@@ -39,5 +39,4 @@ jobs:
         # uses: lafernando/github-action-bash@50aaa1a696ff3b029db96ae429a4de147a3ce9bd
         uses: lafernando/github-action-bash@v1.0
         with:
-          script: |
-            ./build.sh
+          entryPoint: build.sh
