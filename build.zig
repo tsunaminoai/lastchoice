@@ -12,12 +12,9 @@ pub fn build(b: *std.Build) void {
     //     .source_file = .{ .path = "src/fcf.zig" },
     // });
 
-    const lib = b.addModule("firstzig", .{
-        .source_file = .{ .path = "src/fcf.zig" },
-    });
-
     const exe = b.addExecutable(.{
-        .name = "fzp",
+        .name = "lastchoice",
+
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
@@ -26,8 +23,6 @@ pub fn build(b: *std.Build) void {
     // exe.addModule("firstzig", lib);
     b.installArtifact(exe);
 
-    exe.addModule("firstzig", lib);
-    b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

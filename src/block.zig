@@ -77,7 +77,8 @@ pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
             .recordType = blockTag,
             .data = undefined,
         };
-        var data = try alloc.alloc(u8, BLOCK_SIZE - 2);
+        const data = try alloc.alloc(u8, BLOCK_SIZE - 2);
+
         std.mem.copy(u8, data, block.ptr[2..BLOCK_SIZE]);
 
         newBlock.data = data;
