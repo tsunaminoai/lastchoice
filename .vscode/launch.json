@@ -6,6 +6,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/zig-out/bin/lastchoice",
+
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",

@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "lastchoice",
+
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
@@ -21,6 +22,7 @@ pub fn build(b: *std.Build) void {
     // exe.addModule("json", json_module);
     // exe.addModule("firstzig", lib);
     b.installArtifact(exe);
+
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

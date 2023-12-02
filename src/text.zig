@@ -19,6 +19,7 @@ pub const TextStyles = packed struct(u8) {
 
         return std.fmt.format(writer, "N:{} U:{} B:{} I:{}", .{ self.normal, self.underline, self.bold, self.italic });
     }
+
 };
 
 // Baseline is a packed struct that represents the various baselines that can be applied to a character.
@@ -33,6 +34,7 @@ pub const Baseline = packed struct(u8) {
     pub fn fromInt(int: u8) Baseline {
         return @as(Baseline, @bitCast(int));
     }
+
 };
 
 /// TextCharacter is a struct that represents a single character in a text string.  It contains the character itself, as well as the styles and baselines that should be applied to it.
@@ -41,6 +43,7 @@ pub const TextCharacter = struct {
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
     fieldType: ?FCF.FieldType = null,
+
 
     pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = options;
@@ -54,6 +57,7 @@ test "TextCharacter" {
     const char = TextCharacter{ .char = 'a' };
     const expected: u8 = 'a';
     const actual = char.char;
+
 
     try expect(expected == actual);
 }
@@ -202,4 +206,5 @@ test "Lexer Text" {
     try std.testing.expectEqual(char.?.char, 'S');
     char = try lex.next();
     try std.testing.expectEqual(char.?.fieldType.?, .Date);
+
 }

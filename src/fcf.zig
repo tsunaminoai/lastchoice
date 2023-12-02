@@ -14,6 +14,7 @@ arena: Allocator,
 data: []const u8,
 
 header: FCF.Header = undefined,
+
 empties: std.ArrayList(FCF.Empty) = undefined,
 form: FCF.Form = undefined,
 records: std.ArrayList(FCF.Record) = undefined,
@@ -35,6 +36,7 @@ pub fn parse(self: *FCF) !void {
 
     const reader = self.stream.reader();
 
+
     self.header = try reader.readStruct(FCF.Header);
 
     if (!std.mem.eql(u8, self.header.magicString[0..14], magicString)) {
@@ -45,6 +47,7 @@ pub fn parse(self: *FCF) !void {
     try self.parseForm();
 
     try self.parseRecords();
+
 }
 
 pub fn printForm(self: *FCF, writer: anytype) !void {
@@ -58,6 +61,7 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
 
     for (form.fields.items) |field| {
         try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, field.fType.toStr() });
+
     }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
@@ -100,6 +104,7 @@ pub fn printHeader(self: *FCF, writer: anytype) !void {
 pub fn printRecords(self: *FCF, writer: anytype) !void {
     var idx: u16 = 0;
     try writer.writeAll("=" ** 20 ++ " RECORDS " ++ "=" ** 20 ++ "\n");
+
     for (self.records.items) |record| {
         idx += 1;
         try writer.print("| ", .{});
@@ -108,6 +113,7 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
             try writer.print(" {s} |", .{field.name});
         }
 
+
         try writer.writeAll("\n");
     }
 }
@@ -115,6 +121,7 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
 
 const Record = struct {
     id: u32,
+
     fields: std.ArrayList(FieldDefinition),
 };
 // TODO: docs
@@ -389,6 +396,7 @@ pub fn toCSV(self: *FCF, writer: anytype) !void {
     }
 }
 
+
 // TODO: docs
 
 const FormDefinition = extern struct {
@@ -424,3 +432,4 @@ test "json" {
     try std.json.stringify(T{ .a = 123, .b = "xy" }, .{}, out.writer());
     try std.testing.expectEqualSlices(u8, "{\"a\":123,\"b\":\"xy\"}", out.items);
 }
+
