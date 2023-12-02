@@ -4,6 +4,13 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
 
     const optimize = b.standardOptimizeOption(.{});
+    // const json_module = b.dependency("json", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    // }).module("json");
+    // const lib = b.addModule("firstzig", .{
+    //     .source_file = .{ .path = "src/fcf.zig" },
+    // });
 
     const lib = b.addModule("firstzig", .{
         .source_file = .{ .path = "src/fcf.zig" },
@@ -15,6 +22,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    // exe.addModule("json", json_module);
+    // exe.addModule("firstzig", lib);
+    b.installArtifact(exe);
 
     exe.addModule("firstzig", lib);
     b.installArtifact(exe);
