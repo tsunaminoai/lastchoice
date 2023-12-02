@@ -12,14 +12,21 @@ pub fn build(b: *std.Build) void {
     //     .source_file = .{ .path = "src/fcf.zig" },
     // });
 
+    const lib = b.addModule("firstzig", .{
+        .source_file = .{ .path = "src/fcf.zig" },
+    });
+
     const exe = b.addExecutable(.{
-        .name = "lastchoice",
+        .name = "fzp",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
     // exe.addModule("json", json_module);
     // exe.addModule("firstzig", lib);
+    b.installArtifact(exe);
+
+    exe.addModule("firstzig", lib);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

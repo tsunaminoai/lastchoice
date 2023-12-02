@@ -25,8 +25,7 @@ pub const Header = extern struct {
     diskVar: [128 - 41]u8,
 
     pub fn fromBytes(raw: *[128]u8) Header {
-        const head = std.mem.bytesToValue(Header, raw);
-        // head.formDefinitionIndex -= 1;
+        var head = std.mem.bytesToValue(Header, raw);
         return head;
     }
 };
