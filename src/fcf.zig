@@ -332,6 +332,8 @@ fn parseForm(self: *FCF) !void {
         if (self.form.fields.items.len != self.header.availableDBFields) {
             std.log.err("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });
             std.log.err("{any}\n", .{self.form.fields});
+            // todo: this is a bug in the parser, not the file
+            // https://github.com/tsunaminoai/lastchoice/issues/14
             return error.NotAllFieldsParsed;
         }
     }
