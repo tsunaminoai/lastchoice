@@ -10,6 +10,7 @@ pub const Error = error{
     InvalidBlockType,
 } || std.mem.Allocator.Error;
 
+/// Each 128 byte block has a type indicated by the first two bytes in BE
 pub const BlockTypeInt = enum(u16) {
     Empty = 0x0,
     DataContinuation = 0x01,
@@ -33,20 +34,27 @@ pub const BlockTypeInt = enum(u16) {
     }
 
     pub fn fromSlice(int: []const u8) Error!BlockTypeInt {
-        return @This().fromInt(std.mem.readIntSliceBig(u16, int));
+        return @This().fromInt(std.mem.readInt(u16, int, .big));
     }
 };
 
+/// FC Blocks are 128 bytes in size with the first 2 bytes indicating the block's type.
+/// If the data the block contains extends beyond 128 bytes, it will be split into multiple
+/// blocks using continuation type blocks following the initial data block.
 pub const Block = extern struct {
     blockType: BlockTypeInt,
     data: [126]u8,
 };
 
+/// An "empty" is a pair of numbers. A list of these is stored in the 5th block
+/// (FC Block #4) and can go on for several blocks. The number of these pairs
+/// is contained in the header. It is known that some extra repeated pairs can persist.
 pub const Empty = extern struct {
     entry1: u16 = 0,
     entry2: u16 = 0,
 };
 
+/// Takes a buffer of characters and returns an array of FC blocks.
 pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     var blockList = ArrayList(Block).init(alloc);
     errdefer blockList.deinit();
@@ -87,27 +95,4 @@ pub fn readBlocks(buffer: []u8, alloc: Allocator) !ArrayList(Block) {
     }
 
     return blockList;
-}
-
-pub fn parseBlocks(blocks: std.ArrayList(Block)) !void {
-    std.log.debug("<parseBlocks>", .{});
-    for (blocks.items) |b| {
-        switch (b.recordType) {
-            .Empty => continue,
-            else => {
-                std.log.warn("Unknown block type: {s}", .{@tagName(b.recordType)});
-            },
-        }
-    }
-    std.log.debug("</parseBlocks>", .{});
-}
-
-pub fn peekBlock(self: *FCF) FCF.Error!?BlockTypeInt {
-    std.log.debug("<peekBlock index={} buffer={}>", .{ self.index, self.buffer.?.len });
-    if (self.index + @sizeOf(Block) > self.buffer.?.len) return null;
-    const tagInt = std.mem.readIntSlice(u16, self.buffer.?[self.index + 1 .. self.index + 3], std.builtin.Endian.Little);
-    const tag = @as(BlockTypeInt, @enumFromInt(tagInt));
-    std.log.debug("</peekBlock>", .{});
-
-    return tag;
 }

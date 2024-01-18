@@ -1,8 +1,8 @@
 const std = @import("std");
-const Header = @import("header.zig").Header;
-const Block = @import("block.zig");
-const Empty = @import("block.zig").Empty;
-const Text = @import("text.zig");
+pub const Header = @import("header.zig").Header;
+pub const Block = @import("block.zig");
+pub const Empty = @import("block.zig").Empty;
+pub const Text = @import("text.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -36,7 +36,6 @@ pub fn parse(self: *FCF) !void {
 
     const reader = self.stream.reader();
 
-
     self.header = try reader.readStruct(FCF.Header);
 
     if (!std.mem.eql(u8, self.header.magicString[0..14], magicString)) {
@@ -47,7 +46,6 @@ pub fn parse(self: *FCF) !void {
     try self.parseForm();
 
     try self.parseRecords();
-
 }
 
 pub fn printForm(self: *FCF, writer: anytype) !void {
@@ -60,8 +58,8 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
     try writer.print("=" ** 20 ++ " Fields " ++ "=" ** 20 ++ "\n", .{});
 
     for (form.fields.items) |field| {
-        try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, field.fType.toStr() });
-
+        try writer.print("{}\n", .{field});
+        // try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, field.fType.toStr() });
     }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
@@ -113,7 +111,6 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
             try writer.print(" {s} |", .{field.name});
         }
 
-
         try writer.writeAll("\n");
     }
 }
@@ -139,8 +136,12 @@ const FieldDefinition = struct {
     ) !void {
         _ = fmt;
         _ = options;
-        const trimmed = std.mem.trim(u8, self.name, &std.ascii.whitespace);
-        try writer.print("{s}", .{trimmed});
+        // const trimmed = std.mem.trim(u8, self.name, &std.ascii.whitespace);
+        // try writer.print("{s}", .{trimmed});
+
+        for (self.chars.items) |c| {
+            try writer.print("{}", .{c});
+        }
     }
 };
 
@@ -196,7 +197,7 @@ pub const FieldType = enum(u5) {
 pub const Field = struct {
     definition: FieldDefinition = undefined,
     fType: FieldType = .Text,
-    fStyle: Text.TextStyles = .{ .normal = true },
+    fStyle: Text.TextStyles = .{},
 
     const Self = @This();
 
@@ -208,6 +209,15 @@ pub const Field = struct {
     }
     pub fn setDefinition(self: *Self, def: FieldDefinition) void {
         self.definition = def;
+    }
+    pub fn format(
+        self: @This(),
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        try self.definition.format("{}", options, writer);
     }
 };
 
@@ -233,13 +243,13 @@ fn parseForm(self: *FCF) !void {
         if (i == 0) {
             std.log.debug("Copying form data block 0", .{});
             const d = try reader.readBytesNoEof(120);
-            std.mem.copy(u8, formData, &d);
+            std.mem.copyForwards(u8, formData, &d);
         } else {
             std.log.debug("Copying form data block {} from {} to {}", .{ i, 120 + (i - 1) * 126, 120 + (i * 126) });
 
             try reader.skipBytes(2, .{});
             const d = try reader.readBytesNoEof(126);
-            std.mem.copy(u8, formData[120 + (i - 1) * 126 .. 120 + (i * 126)], &d);
+            std.mem.copyForwards(u8, formData[120 + (i - 1) * 126 .. 120 + (i * 126)], &d);
         }
     }
     std.log.debug("formData = {any}\n", .{formData});
@@ -283,8 +293,8 @@ fn parseForm(self: *FCF) !void {
             var i: usize = 0;
             // lex the string found
             while (try lex.next()) |char| {
-                try chars.append(char);
                 std.log.debug("{} Found {c} {any} ", .{ i, char.char, char });
+                try chars.append(char);
                 // if its a field style, record it
                 if (fieldStyle == null) {
                     fieldStyle = char.style;
@@ -309,7 +319,7 @@ fn parseForm(self: *FCF) !void {
                 if (fieldStyle) |fs| {
                     field = Field.init(fieldType, fs);
                 } else {
-                    field = Field.init(fieldType, .{ .normal = true });
+                    field = Field.init(fieldType, .{});
                 }
                 field.setDefinition(FieldDefinition{
                     .size = size,
@@ -321,8 +331,8 @@ fn parseForm(self: *FCF) !void {
         }
         // sanity check
         if (self.form.fields.items.len != self.header.availableDBFields) {
-            std.debug.print("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });
-            std.debug.print("{any}\n", .{self.form.fields});
+            std.log.err("Expected {} fields, found {}.\n", .{ self.header.availableDBFields, self.form.fields.items.len });
+            std.log.err("{any}\n", .{self.form.fields});
             return error.NotAllFieldsParsed;
         }
     }
@@ -396,21 +406,14 @@ pub fn toCSV(self: *FCF, writer: anytype) !void {
     }
 }
 
-
-// TODO: docs
-
+/// This is the schema for the records contained within the file
 const FormDefinition = extern struct {
-    /// The block type tag
-    blockType: u16,
+    blockType: u16, // The block type tag
+    // todo: remove this and use the block type
 
-    /// Number of blocks the form definintion occupies
-    numBlocks: u16,
-
-    /// Number of lines taken in the form screen (Big Endian)
-    lines: u16,
-
-    /// Length plus lines plus 1
-    length: u16,
+    numBlocks: u16, // Number of blocks the schema occupies
+    lines: u16, // Number of lines taken in the form screen (Big Endian)
+    length: u16, // Length plus lines plus 1
 };
 
 const Form = struct {
@@ -432,4 +435,3 @@ test "json" {
     try std.json.stringify(T{ .a = 123, .b = "xy" }, .{}, out.writer());
     try std.testing.expectEqualSlices(u8, "{\"a\":123,\"b\":\"xy\"}", out.items);
 }
-

@@ -1,6 +1,5 @@
 const std = @import("std");
-const FCF = @import("fcf.zig");
-
+pub const FCF = @import("fcf.zig");
 
 var global_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = global_allocator.allocator();
@@ -14,7 +13,6 @@ fn fatal(comptime format: []const u8, args: anytype) noreturn {
         ) catch break :ret;
         std.io.getStdErr().writeAll(msg) catch {};
     }
-
 
     std.process.exit(1);
 }
@@ -199,5 +197,4 @@ pub fn createOutputFile(filename: []const u8) !std.fs.File {
         .{ filename, outfile.mode() },
     );
     return outfile;
-
 }

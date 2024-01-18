@@ -23,7 +23,7 @@ for target in ${targets[@]}; do
         if [ $? == 0 ]; then
             echo -e "\x1b[32msucceeded\x1b[0m"
             successes=$((successes+1))
-            zip -r "dist/zig-${target}-${os}.zip" zig-out >> build.log 2>&1
+            zip -r "dist/lastchoice-${target}-${os}.zip" zig-out >> build.log 2>&1
         else
             echo -e "\x1b[31mfailed\x1b[0m"
             failures=$((failures+1))

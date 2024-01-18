@@ -4,11 +4,10 @@ const FCF = @import("fcf.zig");
 const expect = std.testing.expect;
 /// TextStyles is a packed struct that represents the various styles that can be applied to a character.
 pub const TextStyles = packed struct(u8) {
-    normal: bool = false,
     underline: bool = false,
     bold: bool = false,
     italic: bool = false,
-    _padding: enum(u4) { unset } = .unset,
+    _padding: enum(u5) { unset } = .unset,
 
     pub fn fromInt(int: u8) TextStyles {
         return @as(TextStyles, @bitCast(int));
@@ -17,9 +16,13 @@ pub const TextStyles = packed struct(u8) {
         _ = options;
         _ = fmt;
 
-        return std.fmt.format(writer, "N:{} U:{} B:{} I:{}", .{ self.normal, self.underline, self.bold, self.italic });
+        const bold = "\x1B[31;1;4m";
+        const underline = "\x1B[31;4m";
+        const italic = "\x1B[31;3m";
+        if (self.bold) try std.fmt.format(writer, "{s}", .{bold});
+        if (self.underline) try std.fmt.format(writer, "{s}", .{underline});
+        if (self.italic) try std.fmt.format(writer, "{s}", .{italic});
     }
-
 };
 
 // Baseline is a packed struct that represents the various baselines that can be applied to a character.
@@ -34,30 +37,89 @@ pub const Baseline = packed struct(u8) {
     pub fn fromInt(int: u8) Baseline {
         return @as(Baseline, @bitCast(int));
     }
-
 };
 
-/// TextCharacter is a struct that represents a single character in a text string.  It contains the character itself, as well as the styles and baselines that should be applied to it.
+/// TextCharacter is a struct that represents a single character in a text string.
+/// It contains the character itself, as well as the styles and baselines that
+/// should be applied to it.
 pub const TextCharacter = struct {
     char: u8 = 0,
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
     fieldType: ?FCF.FieldType = null,
 
-
     pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = options;
         _ = fmt;
 
-        return std.fmt.format(writer, "{c}", .{self.char});
+        if (self.style.bold or self.style.underline or self.style.italic)
+            try std.fmt.format(writer, "{s}", .{self.style});
+        try std.fmt.format(writer, "{c}", .{self.char});
+
+        const end = "\x1B[0m";
+        if (self.style.bold or self.style.underline or self.style.italic)
+            try std.fmt.format(writer, "{s}", .{end});
     }
 };
+
+/// Text characters come in different flavors and need to be treated differently.
+pub const CharacterTag = enum {
+    space,
+    field,
+    background,
+    data,
+};
+
+pub const Style = extern struct {
+    underline: u1 = 0,
+    bold: u1 = 0,
+    italic: u1 = 0,
+
+    pub fn fromInt(int: u8) Style {
+        return @as(Style, @truncate(int));
+    }
+};
+
+pub const BaseLine = enum {
+    super,
+    normal,
+    sub,
+
+    pub fn fromInt(int: u8, tag: CharacterTag) BaseLine {
+        return switch (tag) {
+            .space => {},
+            .field, .data => {
+                switch (int) {
+                    0x82 => .sub,
+                    0x84 => .super,
+                    else => unreachable,
+                }
+            },
+            .background => {
+                switch (int) {
+                    0x81 => .normal,
+                    0x83 => .sub,
+                    0x85 => .super,
+                    else => unreachable,
+                }
+            },
+        };
+    }
+};
+
+pub fn Character(comptime T: CharacterTag) type {
+    return struct {
+        tag: T,
+        style: Style,
+        char: u8,
+        base: BaseLine,
+    };
+}
 
 test "TextCharacter" {
     const char = TextCharacter{ .char = 'a' };
     const expected: u8 = 'a';
     const actual = char.char;
-
 
     try expect(expected == actual);
 }
@@ -192,12 +254,15 @@ test "Lexer Text" {
     const gpa = std.testing.allocator;
     _ = gpa;
     // "CLASS"
-    const textFieldBytes = &[_]u8{ 0xc3, 0x90, 0xcc, 0x90, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
+    const textFieldBytes = &[_]u8{ 0xc3, 0x91, 0xcc, 0x93, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
     var lex = Lexer.init(textFieldBytes, true);
     var char = try lex.next();
     try std.testing.expectEqual(char.?.char, 'C');
+    try std.testing.expectEqual(char.?.style.underline, true);
     char = try lex.next();
     try std.testing.expectEqual(char.?.char, 'L');
+    try std.testing.expectEqual(char.?.style.underline, true);
+    try std.testing.expectEqual(char.?.style.bold, true);
     char = try lex.next();
     try std.testing.expectEqual(char.?.char, 'A');
     char = try lex.next();
@@ -206,5 +271,4 @@ test "Lexer Text" {
     try std.testing.expectEqual(char.?.char, 'S');
     char = try lex.next();
     try std.testing.expectEqual(char.?.fieldType.?, .Date);
-
 }

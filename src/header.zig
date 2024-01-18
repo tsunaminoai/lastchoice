@@ -2,39 +2,36 @@ const std = @import("std");
 const Block = @import("block.zig");
 const FCF = @import("fcf.zig");
 
-// https://www.fileformat.info/format/foxpro/dbf.htm
-// TODO: docs
-
+/// The magic string indicating a FirstChoice file
 const MagicString = [14]u8{ 0x0C, 0x47, 0x45, 0x52, 0x42, 0x49, 0x4C, 0x44, 0x42, 0x33, 0x20, 0x20, 0x20, 0x00 };
+
+/// The header is the first block in a FirstChoice file. It contains all the
+/// necessary fields to reconstruct the data.
+/// for more info see https://www.fileformat.info/format/foxpro/dbf.htm
 pub const Header = extern struct {
-    formDefinitionIndex: u16, // block# - 1
-    lastUsedBlock: u16, // not accurate
-    totalFileBlocks: u16, // dont count header
-    dataRecords: u16,
-    magicString: [14]u8,
-    availableDBFields: u16,
-    formLength: u16,
-    formRevisions: u16, // 1 indexed
-    _1: u16,
-    emptiesLength: u16,
-    tableViewIndex: u16,
-    programRecordIndex: u16,
-    _2: u16,
-    _3: u16,
-    nextFieldSize: u8,
-    diskVar: [128 - 41]u8,
+    formDefinitionIndex: u16, // The index number of the form definition
+    lastUsedBlock: u16, // the last block used in the file. It is known not to be accurate in FirstChoice files
+    totalFileBlocks: u16, // number of blocks in the file, minus the header
+    dataRecords: u16, // the number of data records held in the file
+    magicString: [14]u8, // the magic string
+    availableDBFields: u16, // the number of fields in the schema
+    formLength: u16, // number of blocks the schema takes up
+    formRevisions: u16, // number of schema revisions. 1 indexed
+    _1: u16, // padding
+    emptiesLength: u16, // number of empties blocks
+    tableViewIndex: u16, // index of the table view, if any
+    programRecordIndex: u16, // index of the program record, if any
+    _2: u16, // padding
+    _3: u16, // padding
+    nextFieldSize: u8, // size of the next field
+    diskVar: [128 - 41]u8, // @DISKVAR value for formulas
 
+    /// Converts a 128 block into a Header for field access
     pub fn fromBytes(raw: *[128]u8) Header {
-        const head = std.mem.bytesToValue(Header, raw);
-
-        return head;
+        return std.mem.bytesToValue(Header, raw);
     }
 };
 
-fn getSlice(file_content: []const u8, file_offset: usize, count: usize) []align(1) Header {
-    const ptr = @intFromPtr(file_content.ptr) + file_offset;
-    return @as([*]align(1) Header, @ptrFromInt(ptr))[0..count];
-}
 test "read header" {
     // 09 00 1c 00 1c 00 08 00  0c 47 45 52 42 49 4c 44
     // 42 33 20 20 20 00 0d 00  26 01 02 00 00 00 00 00
