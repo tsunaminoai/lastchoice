@@ -58,8 +58,7 @@ pub fn printForm(self: *FCF, writer: anytype) !void {
     try writer.print("=" ** 20 ++ " Fields " ++ "=" ** 20 ++ "\n", .{});
 
     for (form.fields.items) |field| {
-        try writer.print("{}\n", .{field});
-        // try writer.print("{s}\t({})\t{s}\n", .{ field.definition.name, field.definition.size, field.fType.toStr() });
+        try writer.print("{}\t({})\t{s}\n", .{ field, field.definition.size, field.fType.toStr() });
     }
 }
 pub fn printHeader(self: *FCF, writer: anytype) !void {
@@ -114,15 +113,15 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
         try writer.writeAll("\n");
     }
 }
-// TODO: docs
 
+/// A record has a list of fields, which are the actual data
 const Record = struct {
     id: u32,
 
     fields: std.ArrayList(FieldDefinition),
 };
-// TODO: docs
 
+/// A field definition is the actual data for a field
 const FieldDefinition = struct {
     size: u16,
     chars: std.ArrayList(FCF.Text.TextCharacter),
