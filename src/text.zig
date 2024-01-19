@@ -2,6 +2,8 @@ const std = @import("std");
 const FCF = @import("fcf.zig");
 
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+
 /// TextStyles is a packed struct that represents the various styles that can be applied to a character.
 pub const TextStyles = packed struct(u8) {
     underline: bool = false,
@@ -62,66 +64,12 @@ pub const TextCharacter = struct {
     }
 };
 
-/// Text characters come in different flavors and need to be treated differently.
-pub const CharacterTag = enum {
-    space,
-    field,
-    background,
-    data,
-};
-
-pub const Style = extern struct {
-    underline: u1 = 0,
-    bold: u1 = 0,
-    italic: u1 = 0,
-
-    pub fn fromInt(int: u8) Style {
-        return @as(Style, @truncate(int));
-    }
-};
-
-pub const BaseLine = enum {
-    super,
-    normal,
-    sub,
-
-    pub fn fromInt(int: u8, tag: CharacterTag) BaseLine {
-        return switch (tag) {
-            .space => {},
-            .field, .data => {
-                switch (int) {
-                    0x82 => .sub,
-                    0x84 => .super,
-                    else => unreachable,
-                }
-            },
-            .background => {
-                switch (int) {
-                    0x81 => .normal,
-                    0x83 => .sub,
-                    0x85 => .super,
-                    else => unreachable,
-                }
-            },
-        };
-    }
-};
-
-pub fn Character(comptime T: CharacterTag) type {
-    return struct {
-        tag: T,
-        style: Style,
-        char: u8,
-        base: BaseLine,
-    };
-}
-
 test "TextCharacter" {
     const char = TextCharacter{ .char = 'a' };
     const expected: u8 = 'a';
     const actual = char.char;
 
-    try expect(expected == actual);
+    try expectEqual(expected, actual);
 }
 
 const ErrorList = std.ArrayList([]u8);

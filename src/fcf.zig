@@ -3,6 +3,7 @@ pub const Header = @import("header.zig").Header;
 pub const Block = @import("block.zig");
 pub const Empty = @import("block.zig").Empty;
 pub const Text = @import("text.zig");
+pub const String = @import("string.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -195,13 +196,16 @@ pub const FieldType = enum(u5) {
 
 pub const Field = struct {
     definition: FieldDefinition = undefined,
+    name: String.String(.field) = undefined,
     fType: FieldType = .Text,
     fStyle: Text.TextStyles = .{},
+    alloc: std.mem.Allocator,
 
     const Self = @This();
 
-    pub fn init(ftype: FieldType, style: Text.TextStyles) Self {
+    pub fn init(alloc: std.mem.Allocator, ftype: FieldType, style: Text.TextStyles) Self {
         return Self{
+            .alloc = alloc,
             .fType = ftype,
             .fStyle = style,
         };
@@ -216,7 +220,9 @@ pub const Field = struct {
         writer: anytype,
     ) !void {
         _ = fmt;
-        try self.definition.format("{}", options, writer);
+        _ = options;
+        // try self.definition.format("{}", options, writer);
+        try writer.print("{}", .{self.name});
     }
 };
 
@@ -316,15 +322,17 @@ fn parseForm(self: *FCF) !void {
                 // create the field and append it
                 var field: Field = undefined;
                 if (fieldStyle) |fs| {
-                    field = Field.init(fieldType, fs);
+                    field = Field.init(self.arena, fieldType, fs);
                 } else {
-                    field = Field.init(fieldType, .{});
+                    field = Field.init(self.arena, fieldType, .{});
                 }
                 field.setDefinition(FieldDefinition{
                     .size = size,
                     .chars = chars,
                     .name = name,
                 });
+                //todo: get rid of the lexer and use this instead
+                field.name = try String.String(.field).fromBytes(self.arena, fieldBytes, size);
                 try self.form.fields.append(field);
             }
         }
