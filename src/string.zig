@@ -74,7 +74,7 @@ pub fn String(comptime T: CharacterTag) type {
         chars: std.ArrayList(Character),
         alloc: std.mem.Allocator,
 
-        pub fn fromBytes(alloc: std.mem.Allocator, bytes: []const u8, size: usize) !String(T) {
+        pub fn fromBytes(alloc: std.mem.Allocator, bytes: []const u8) !String(T) {
             var string = String(T){
                 .tag = T,
                 .chars = std.ArrayList(Character).init(alloc),
@@ -83,7 +83,7 @@ pub fn String(comptime T: CharacterTag) type {
 
             var idx: usize = 0;
 
-            blk: while (idx < size) {
+            blk: while (idx < bytes.len - 1) {
                 const char = bytes[idx];
                 var newChar = Character{ .char = char };
 
@@ -153,7 +153,7 @@ pub fn String(comptime T: CharacterTag) type {
 test "String" {
     const gpa = std.testing.allocator;
     const bytes = &[_]u8{ 0xc3, 0x91, 0xcc, 0x93, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
-    var string = try String(.field).fromBytes(gpa, bytes, bytes.len);
+    var string = try String(.field).fromBytes(gpa, bytes);
     defer string.deinit();
     try expectEqual(string.len, 6);
     try expectEqual(string.chars.items[0].char, 'C');

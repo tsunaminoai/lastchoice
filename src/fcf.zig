@@ -332,7 +332,7 @@ fn parseForm(self: *FCF) !void {
                     .name = name,
                 });
                 //todo: get rid of the lexer and use this instead
-                field.name = try String.String(.field).fromBytes(self.arena, fieldBytes, size);
+                field.name = try String.String(.field).fromBytes(self.arena, fieldBytes);
                 try self.form.fields.append(field);
             }
         }
