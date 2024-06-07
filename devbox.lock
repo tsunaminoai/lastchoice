@@ -1,0 +1,117 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "zig@0.12.0": {
+      "last_modified": "2024-05-22T06:18:38Z",
+      "resolved": "github:NixOS/nixpkgs/3f316d2a50699a78afe5e77ca486ad553169061e#zig",
+      "source": "devbox-search",
+      "version": "0.12.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/v1y7n4a9ns3ffkkv5hh4lncnc93jaiwb-zig-0.12.0",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/2zy67ca2m7ma69zxn429892s199gqnbv-zig-0.12.0-doc"
+            }
+          ],
+          "store_path": "/nix/store/v1y7n4a9ns3ffkkv5hh4lncnc93jaiwb-zig-0.12.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8gmz9v6qc8hq2hr6sx2zpxdi0lwvsjp7-zig-0.12.0",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/mdx78lkb0axv1r486r7dgm0yr6hqv1hb-zig-0.12.0-doc"
+            }
+          ],
+          "store_path": "/nix/store/8gmz9v6qc8hq2hr6sx2zpxdi0lwvsjp7-zig-0.12.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zzp9xhc0cjgzvjzwvylf9ymlycvic40a-zig-0.12.0",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/ii4m7jw948ly4dk6zyb05pnkhqbhy5v5-zig-0.12.0-doc"
+            }
+          ],
+          "store_path": "/nix/store/zzp9xhc0cjgzvjzwvylf9ymlycvic40a-zig-0.12.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/rwjg7srpajzp1bcibgx2lzd3xv273d50-zig-0.12.0",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/4xz8kb5xk24hpcpdajyrn47n8xr5nsmz-zig-0.12.0-doc"
+            }
+          ],
+          "store_path": "/nix/store/rwjg7srpajzp1bcibgx2lzd3xv273d50-zig-0.12.0"
+        }
+      }
+    },
+    "zls@latest": {
+      "last_modified": "2024-05-22T06:18:38Z",
+      "resolved": "github:NixOS/nixpkgs/3f316d2a50699a78afe5e77ca486ad553169061e#zls",
+      "source": "devbox-search",
+      "version": "0.12.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/r6wlyrmhwb8hcbiiami1fj1d5nqh5gqd-zls-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/r6wlyrmhwb8hcbiiami1fj1d5nqh5gqd-zls-0.12.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ypyvlhr5nv5dwk4h0sz0m9cd6gg9fxb7-zls-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/ypyvlhr5nv5dwk4h0sz0m9cd6gg9fxb7-zls-0.12.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fka9hz0sa5aqhk08b1i0278npn93xlmz-zls-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fka9hz0sa5aqhk08b1i0278npn93xlmz-zls-0.12.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/vxk7l8wh8d33f3wm5xsw08nrxw126fjz-zls-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/vxk7l8wh8d33f3wm5xsw08nrxw126fjz-zls-0.12.0"
+        }
+      }
+    }
+  }
+}
