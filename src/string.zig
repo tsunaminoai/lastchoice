@@ -83,12 +83,14 @@ pub fn String(comptime T: CharacterTag) type {
 
             var idx: usize = 0;
 
-            while (idx < size) {
+            blk: while (idx < size) {
                 const char = bytes[idx];
                 var newChar = Character{ .char = char };
 
                 switch (char) {
-                    0x00 => {},
+                    0x00 => {
+                        break :blk;
+                    },
                     0x01...0x20 => newChar.char = ' ',
                     0x21...0x79 => {},
                     // 0x80 => newChar.char = ' ',
@@ -151,9 +153,9 @@ pub fn String(comptime T: CharacterTag) type {
 test "String" {
     const gpa = std.testing.allocator;
     const bytes = &[_]u8{ 0xc3, 0x91, 0xcc, 0x93, 0xc1, 0x90, 0xd3, 0x90, 0xd3, 0x90, 0x83, 0x90, 0x0d, 0x0d };
-    var string = try String(.field).fromBytes(gpa, bytes);
+    var string = try String(.field).fromBytes(gpa, bytes, bytes.len);
     defer string.deinit();
-    try expectEqual(string.len, 8);
+    try expectEqual(string.len, 6);
     try expectEqual(string.chars.items[0].char, 'C');
     try expectEqual(string.chars.items[0].style.underline, true);
     try expectEqual(string.chars.items[1].char, 'L');
