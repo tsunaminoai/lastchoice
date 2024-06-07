@@ -4,6 +4,9 @@ pub const Block = @import("block.zig");
 pub const Empty = @import("block.zig").Empty;
 pub const Text = @import("text.zig");
 pub const String = @import("string.zig");
+pub const Field = @import("field.zig");
+pub const Form = @import("form.zig");
+pub const Record = @import("record.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -115,123 +118,12 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
     }
 }
 
-/// A record has a list of fields, which are the actual data
-const Record = struct {
-    id: u32,
-
-    fields: std.ArrayList(FieldDefinition),
-};
-
-/// A field definition is the actual data for a field
-const FieldDefinition = struct {
-    size: u16,
-    chars: std.ArrayList(FCF.Text.TextCharacter),
-    name: []u8,
-
-    pub fn format(
-        self: @This(),
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-        // const trimmed = std.mem.trim(u8, self.name, &std.ascii.whitespace);
-        // try writer.print("{s}", .{trimmed});
-
-        for (self.chars.items) |c| {
-            try writer.print("{}", .{c});
-        }
-    }
-};
-
-pub const FieldStyle = enum(u4) {
-    Normal,
-    Underline,
-    Bold,
-    Italic,
-
-    pub fn fromInt(int: u8) !FieldStyle {
-        return switch (int & 0x0F) {
-            0 => .Normal,
-            1 => .Underline,
-            2 => .Bold,
-            4 => .Italic,
-            else => {
-                std.debug.print("Invalid Field Style: {X:>02}\n", .{int});
-                return error.InvalidFieldStyle;
-            },
-        };
-    }
-};
-
-pub const FieldType = enum(u5) {
-    Text = 1,
-    Numeric = 2,
-    Date = 3,
-    Time = 4,
-    Bool = 5,
-    _,
-    pub fn fromInt(int: u8) ?FieldType {
-        return switch (int) {
-            1 => .Text,
-            2 => .Numeric,
-            3 => .Date,
-            4 => .Time,
-            5 => .Bool,
-            else => null,
-        };
-    }
-    pub fn toStr(self: @This()) []const u8 {
-        return switch (self) {
-            .Text => "Text",
-            .Numeric => "Number",
-            .Date => "Date",
-            .Time => "Time",
-            .Bool => "Bool",
-            else => "Unknown",
-        };
-    }
-};
-
-pub const Field = struct {
-    definition: FieldDefinition = undefined,
-    name: String.String(.field) = undefined,
-    fType: FieldType = .Text,
-    fStyle: Text.TextStyles = .{},
-    alloc: std.mem.Allocator,
-
-    const Self = @This();
-
-    pub fn init(alloc: std.mem.Allocator, ftype: FieldType, style: Text.TextStyles) Self {
-        return Self{
-            .alloc = alloc,
-            .fType = ftype,
-            .fStyle = style,
-        };
-    }
-    pub fn setDefinition(self: *Self, def: FieldDefinition) void {
-        self.definition = def;
-    }
-    pub fn format(
-        self: @This(),
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
-        _ = fmt;
-        _ = options;
-        // try self.definition.format("{}", options, writer);
-        try writer.print("{}", .{self.name});
-    }
-};
-
 fn parseForm(self: *FCF) !void {
     // get the formdata
     try self.stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
     var reader = self.stream.reader();
 
-    const formDef = try reader.readStruct(FCF.FormDefinition);
+    const formDef = try reader.readStruct(Form.Definition);
 
     self.form = Form{
         .definition = formDef,
@@ -292,7 +184,7 @@ fn parseForm(self: *FCF) !void {
 
             // init the "lexer"
             var lex = Text.Lexer.init(fieldBytes, true);
-            var fieldType: FieldType = undefined;
+            var fieldType: Field.Type = undefined;
             var fieldStyle: ?Text.TextStyles = null;
 
             var i: usize = 0;
@@ -326,7 +218,7 @@ fn parseForm(self: *FCF) !void {
                 } else {
                     field = Field.init(self.arena, fieldType, .{});
                 }
-                field.setDefinition(FieldDefinition{
+                field.setDefinition(Field.Definition{
                     .size = size,
                     .chars = chars,
                     .name = name,
@@ -362,7 +254,7 @@ pub fn parseRecords(self: *FCF) !void {
 
             var record = Record{
                 .id = id,
-                .fields = std.ArrayList(FCF.FieldDefinition).init(self.arena),
+                .fields = std.ArrayList(Field.Definition).init(self.arena),
             };
 
             var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
@@ -383,7 +275,7 @@ pub fn parseRecords(self: *FCF) !void {
                 }
                 if (i == 0) break;
 
-                const field = FieldDefinition{
+                const field = Field.Definition{
                     .size = 0,
                     .chars = chars,
                     .name = @constCast(std.mem.trim(u8, name.ptr[0..i], " ")),
@@ -414,23 +306,6 @@ pub fn toCSV(self: *FCF, writer: anytype) !void {
         try writer.writeAll("\n");
     }
 }
-
-/// This is the schema for the records contained within the file
-const FormDefinition = extern struct {
-    blockType: u16, // The block type tag
-    // todo: remove this and use the block type
-
-    numBlocks: u16, // Number of blocks the schema occupies
-    lines: u16, // Number of lines taken in the form screen (Big Endian)
-    length: u16, // Length plus lines plus 1
-};
-
-const Form = struct {
-    definition: FormDefinition,
-    lines: u16,
-    length: u16,
-    fields: std.ArrayList(Field),
-};
 
 test {
     _ = std.testing.refAllDecls(@This());

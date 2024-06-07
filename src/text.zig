@@ -1,5 +1,5 @@
 const std = @import("std");
-const FCF = @import("fcf.zig");
+const Field = @import("field.zig");
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -48,7 +48,7 @@ pub const TextCharacter = struct {
     char: u8 = 0,
     style: TextStyles = TextStyles{},
     baseline: Baseline = Baseline{},
-    fieldType: ?FCF.FieldType = null,
+    fieldType: ?Field.Type = null,
 
     pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = options;
@@ -140,7 +140,7 @@ pub const Lexer = struct {
                         // std.log.debug("909f prong> b1: {X:>02} b2: {X:>02}", .{ currentChar, byte2 });
 
                         //field definition
-                        if (FCF.FieldType.fromInt(textCharacter.char)) |t| {
+                        if (Field.Type.fromInt(textCharacter.char)) |t| {
                             textCharacter.fieldType = t;
                         }
                         textCharacter.style = TextStyles.fromInt(byte2);
