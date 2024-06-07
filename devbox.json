@@ -2,15 +2,26 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.10.7/.schema/devbox.schema.json",
   "packages": [
     "zig@0.12.0",
-    "zls@latest"
+    "zls@latest",
+    "watchexec@latest"
   ],
   "shell": {
     "init_hook": [
-      "echo 'Welcome to devbox!' > /dev/null"
+      "echo 'Welcome to devbox!'",
+      "devbox run"
     ],
     "scripts": {
       "test": [
-        "echo \"Error: no test specified\" && exit 1"
+        "zig build test"
+      ],
+      "test-watch": [
+        "watchexec --exts zig --watch src 'clear && zig build test'"
+      ],
+      "build": [
+        "zig build"
+      ],
+      "run": [
+        "zig build run"
       ]
     }
   }
