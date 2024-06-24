@@ -90,9 +90,10 @@ pub const Header = extern struct {
 
     /// Converts a 128 block into a Header for field access
     pub fn fromBytes(raw: *[128]u8) !Header {
-        const head = std.mem.bytesToValue(Header, raw);
+        var head = std.mem.bytesToValue(Header, raw);
         if (!head.isValid())
             return error.InvalidMagicString;
+        head.formDefinitionIndex -= 1;
         return head;
     }
 
@@ -147,7 +148,7 @@ test "read header" {
     var head = try Header.fromBytes(&bytes);
     // std.debug.print("{s}\n", .{head});
 
-    try std.testing.expectEqual(head.formDefinitionIndex, 9);
+    try std.testing.expectEqual(head.formDefinitionIndex, 8);
     try std.testing.expectEqual(head.lastUsedBlock, 28);
     try std.testing.expectEqual(head.totalFileBlocks, 28);
     try std.testing.expectEqual(head.dataRecords, 8);

@@ -13,6 +13,7 @@ var alloc: std.mem.Allocator = undefined;
 
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
     const self = try allocator.create(LCFile);
+    errdefer allocator.destroy(self);
 
     alloc = allocator;
     const file = try std.fs.cwd().openFile(file_path, .{});
@@ -22,11 +23,13 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
         alloc,
         std.math.maxInt(u32),
     );
+    errdefer alloc.free(raw);
     self.* = .{
         .header = try Block.Header.fromBytes(raw[0..128]),
         .blocks = try Block.fromBytes(raw[128..]),
     };
     self.schema = try Schema.init(alloc, self.header, self.blocks);
+    errdefer self.deinit();
 
     return self;
 }
@@ -47,7 +50,7 @@ test "LCFile" {
 
     const block = file.blocks[0];
     try std.testing.expectEqual(block.type, Block.Type.Empty);
-    for (file.blocks) |b| {
-        std.debug.print("{s}\n", .{@tagName(b.type)});
-    }
+    // for (file.blocks) |b| {
+    //     std.debug.print("{s}\n", .{@tagName(b.type)});
+    // }
 }
