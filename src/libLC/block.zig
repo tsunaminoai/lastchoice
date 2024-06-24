@@ -97,6 +97,22 @@ pub const Header = extern struct {
     pub fn isValid(self: Header) bool {
         return std.mem.eql(u8, &self.magicString, &MagicString);
     }
+    pub fn format(self: Header, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt; // autofix
+        _ = options; // autofix
+        try writer.print("Form Index: {}\n", .{self.formDefinitionIndex});
+        try writer.print("Last Used Block: {}\n", .{self.lastUsedBlock});
+        try writer.print("Total File Blocks: {}\n", .{self.totalFileBlocks});
+        try writer.print("Data Records: {}\n", .{self.dataRecords});
+        try writer.print("Available DB Fields: {}\n", .{self.availableDBFields});
+        try writer.print("Form Length: {}\n", .{self.formLength});
+        try writer.print("Form Revisions: {}\n", .{self.formRevisions});
+        try writer.print("Empties Length: {}\n", .{self.emptiesLength});
+        try writer.print("Table View Index: {}\n", .{self.tableViewIndex});
+        try writer.print("Program Record Index: {}\n", .{self.programRecordIndex});
+        try writer.print("Next Field Size: {}\n", .{self.nextFieldSize});
+        try writer.print("Disk Var: {s}\n", .{self.diskVar});
+    }
 };
 
 test "read header" {
@@ -141,4 +157,5 @@ test "read header" {
     try std.testing.expectEqual(head.tableViewIndex, 0xFFFF);
     try std.testing.expectEqual(head.programRecordIndex, 0xFFFF);
     try std.testing.expectEqual(head.nextFieldSize, 8);
+    std.debug.print("{any}\n", .{head});
 }

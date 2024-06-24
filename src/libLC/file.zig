@@ -38,7 +38,7 @@ test "LCFile" {
     var file = try LCFile.init(allocator, "RESERVE.FOL");
     defer file.deinit();
 
-    try std.testing.expectEqual(raw.len, 3712);
+    try std.testing.expectEqual(raw.len, file.header.totalFileBlocks * 128 + 128);
     try std.testing.expectEqual(file.blocks.len, file.header.totalFileBlocks);
 
     const block = file.blocks[0];
