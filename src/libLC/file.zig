@@ -4,6 +4,7 @@ const Block = @import("block.zig");
 const LCFile = @This();
 
 blocks: []align(1) Block,
+header: Block.Header,
 
 var raw: []u8 = undefined;
 var alloc: std.mem.Allocator = undefined;
@@ -20,6 +21,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
         std.math.maxInt(u32),
     );
     self.* = .{
+        .header = try Block.Header.fromBytes(raw[0..128]),
         .blocks = try Block.fromBytes(raw[128..]),
     };
 
@@ -37,8 +39,11 @@ test "LCFile" {
     defer file.deinit();
 
     try std.testing.expectEqual(raw.len, 3712);
-    try std.testing.expectEqual(file.blocks.len, (3712 / 128) - 1);
+    try std.testing.expectEqual(file.blocks.len, file.header.totalFileBlocks);
 
     const block = file.blocks[0];
     try std.testing.expectEqual(block.type, Block.Type.Empty);
+    for (file.blocks) |b| {
+        std.debug.print("{s}\n", .{@tagName(b.type)});
+    }
 }
