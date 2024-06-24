@@ -4,6 +4,8 @@ const Block_Size = 128;
 
 const Block = @This();
 
+pub const BlockList = []align(1) Block;
+
 type: Type,
 data: [126]u8,
 
@@ -34,7 +36,7 @@ pub const Type = enum(u16) {
     }
 };
 
-pub fn fromBytes(data: []u8) ![]align(1) Block {
+pub fn fromBytes(data: []u8) !BlockList {
     if (data.len % Block_Size != 0) {
         return error.InvalidBlockData;
     }

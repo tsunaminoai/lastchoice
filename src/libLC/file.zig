@@ -4,7 +4,7 @@ const Schema = @import("schema.zig");
 
 const LCFile = @This();
 
-blocks: []align(1) Block,
+blocks: Block.BlockList,
 header: Block.Header,
 schema: *Schema = undefined,
 

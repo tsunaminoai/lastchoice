@@ -10,7 +10,7 @@ var data: []u8 = undefined;
 pub fn init(
     allocator: std.mem.Allocator,
     header: Block.Header,
-    blocks: []align(1) Block,
+    blocks: Block.BlockList,
 ) !*Schema {
     alloc = allocator;
     const self = try alloc.create(Schema);
@@ -22,7 +22,7 @@ pub fn init(
 fn readDataFromBlocks(
     self: *Schema,
     header: Block.Header,
-    blocks: []align(1) Block,
+    blocks: Block.BlockList,
 ) !void {
     _ = self; // autofix
 
