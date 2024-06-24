@@ -1,10 +1,12 @@
 const std = @import("std");
 const Block = @import("block.zig");
+const Schema = @import("schema.zig");
 
 const LCFile = @This();
 
 blocks: []align(1) Block,
 header: Block.Header,
+schema: *Schema = undefined,
 
 var raw: []u8 = undefined;
 var alloc: std.mem.Allocator = undefined;
@@ -24,11 +26,13 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
         .header = try Block.Header.fromBytes(raw[0..128]),
         .blocks = try Block.fromBytes(raw[128..]),
     };
+    self.schema = try Schema.init(alloc, self.header, self.blocks);
 
     return self;
 }
 
 pub fn deinit(self: *LCFile) void {
+    self.schema.deinit();
     alloc.free(raw);
     alloc.destroy(self);
 }
