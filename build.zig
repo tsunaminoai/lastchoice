@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const libLC = b.addStaticLibrary(.{
-        .name = "libLC",
+        .name = "lastchoice",
         .root_source_file = .{ .path = "src/libLC/liblc.zig" },
         .target = target,
         .optimize = optimize,
