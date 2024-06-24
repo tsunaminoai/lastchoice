@@ -17,4 +17,4 @@ const Form = @This();
 definition: Definition,
 lines: u16,
 length: u16,
-fields: std.ArrayList(Field),
+fields: std.ArrayList(*Field),

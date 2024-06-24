@@ -4,24 +4,29 @@ const String = @import("string.zig");
 
 const Field = @This();
 
-definition: Definition = undefined,
+definition: *Definition = undefined,
 name: String.String(.field) = undefined,
 fType: Type = .Text,
 fStyle: Text.TextStyles = .{},
-alloc: std.mem.Allocator,
 
-pub fn init(alloc: std.mem.Allocator, ftype: Type, style: Text.TextStyles) Field {
-    return .{
-        .alloc = alloc,
-        .fType = ftype,
-        .fStyle = style,
+var alloc: std.mem.Allocator = undefined;
+
+pub fn init(allocator: std.mem.Allocator, name: []u8, size: u16, ftype: ?Type, style: ?Text.TextStyles) !*Field {
+    alloc = allocator;
+    const self = try alloc.create(Field);
+
+    self.* = .{
+        .definition = try Definition.init(alloc, size, name),
+        .fType = ftype orelse .Text,
+        .fStyle = style orelse .{},
     };
+    return self;
 }
-pub fn setDefinition(self: *Field, def: Definition) void {
-    self.definition = def;
+pub fn deinit(self: *Field) void {
+    self.definition.deinit(alloc);
 }
 pub fn format(
-    self: @This(),
+    self: Field,
     comptime fmt: []const u8,
     options: std.fmt.FormatOptions,
     writer: anytype,
@@ -38,8 +43,23 @@ pub const Definition = struct {
     chars: std.ArrayList(Text.TextCharacter),
     name: []u8,
 
+    pub fn init(allocator: std.mem.Allocator, size: u16, field_name: []u8) !*Definition {
+        const self = try allocator.create(Definition);
+        errdefer allocator.destroy(self);
+        self.* = .{
+            .size = size,
+            .chars = std.ArrayList(Text.TextCharacter).init(alloc),
+            .name = field_name,
+        };
+        return self;
+    }
+    pub fn deinit(self: *Definition, allocator: std.mem.Allocator) void {
+        self.chars.deinit();
+        allocator.destroy(self);
+    }
+
     pub fn format(
-        self: *Definition,
+        self: Definition,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
         writer: anytype,

@@ -14,7 +14,7 @@ const Endien = std.builtin.Endian;
 const bigToNative = std.mem.bigToNative;
 const nativeToBig = std.mem.nativeToBig;
 
-arena: Allocator,
+arena: std.heap.ArenaAllocator,
 data: []const u8,
 
 header: FCF.Header = undefined,
@@ -119,6 +119,7 @@ pub fn printRecords(self: *FCF, writer: anytype) !void {
 }
 
 fn parseForm(self: *FCF) !void {
+    const alloc = self.arena.allocator();
     // get the formdata
     try self.stream.seekTo(self.header.formDefinitionIndex * BLOCK_SIZE);
     var reader = self.stream.reader();
@@ -129,12 +130,12 @@ fn parseForm(self: *FCF) !void {
         .definition = formDef,
         .lines = std.mem.bigToNative(u16, formDef.lines),
         .length = std.mem.bigToNative(u16, formDef.length),
-        .fields = std.ArrayList(Field).init(self.arena),
+        .fields = std.ArrayList(*Field).init(alloc),
     };
 
     // this block aggregates all the form data into a sinigle chunk,
     // so we dont have to worry about block ids and all that
-    var formData: []u8 = try self.arena.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
+    var formData: []u8 = try alloc.alloc(u8, BLOCK_SIZE * self.form.definition.numBlocks);
     @memset(formData, 0);
     for (0..self.form.definition.numBlocks) |i| {
         if (i == 0) {
@@ -179,8 +180,8 @@ fn parseForm(self: *FCF) !void {
             idx += size;
 
             // set up name and char array
-            var name: []u8 = try self.arena.alloc(u8, 1);
-            var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
+            var name: []u8 = try alloc.alloc(u8, 1);
+            var chars = std.ArrayList(Text.TextCharacter).init(alloc);
 
             // init the "lexer"
             var lex = Text.Lexer.init(fieldBytes, true);
@@ -205,26 +206,16 @@ fn parseForm(self: *FCF) !void {
                     continue;
                 }
                 // realloc and add to the name
-                name = try self.arena.realloc(name, i + 2);
+                name = try alloc.realloc(name, i + 2);
                 name[i] = char.char;
                 i += 1;
             }
             // if there were chars found
             if (i > 0) {
                 // create the field and append it
-                var field: Field = undefined;
-                if (fieldStyle) |fs| {
-                    field = Field.init(self.arena, fieldType, fs);
-                } else {
-                    field = Field.init(self.arena, fieldType, .{});
-                }
-                field.setDefinition(Field.Definition{
-                    .size = size,
-                    .chars = chars,
-                    .name = name,
-                });
+                var field = try Field.init(alloc, name, size, fieldType, fieldStyle);
                 //todo: get rid of the lexer and use this instead
-                field.name = try String.String(.field).fromBytes(self.arena, fieldBytes);
+                field.name = try String.String(.field).fromBytes(alloc, fieldBytes);
                 try self.form.fields.append(field);
             }
         }
@@ -240,7 +231,8 @@ fn parseForm(self: *FCF) !void {
 }
 
 pub fn parseRecords(self: *FCF) !void {
-    self.records = std.ArrayList(FCF.Record).init(self.arena);
+    const alloc = self.arena.allocator();
+    self.records = std.ArrayList(FCF.Record).init(alloc);
     {
         const dataStartPosition = BLOCK_SIZE * (self.header.formDefinitionIndex + self.form.definition.numBlocks);
         var dataWindow = std.mem.window(u8, self.data[dataStartPosition..], BLOCK_SIZE, BLOCK_SIZE);
@@ -254,27 +246,28 @@ pub fn parseRecords(self: *FCF) !void {
 
             var record = Record{
                 .id = id,
-                .fields = std.ArrayList(Field.Definition).init(self.arena),
+                .fields = std.ArrayList(Field.Definition).init(alloc),
             };
 
             var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
             while (tok.next()) |recordField| {
                 if (recordField.len < 2) break;
                 var lex = Text.Lexer.init(recordField[2..], false);
-                var chars = std.ArrayList(Text.TextCharacter).init(self.arena);
-                var name: []u8 = try self.arena.alloc(u8, 1);
+                var chars = std.ArrayList(Text.TextCharacter).init(alloc);
+                var name: []u8 = try alloc.alloc(u8, 1);
 
                 var i: usize = 0;
 
                 while (try lex.next()) |char| {
                     try chars.append(char);
 
-                    name = try self.arena.realloc(name, i + 2);
+                    name = try alloc.realloc(name, i + 2);
                     name[i] = char.char;
                     i += 1;
                 }
                 if (i == 0) break;
-
+                var f = try Field.init(alloc, name.ptr[0..i], 0, null, null);
+                errdefer f.deinit();
                 const field = Field.Definition{
                     .size = 0,
                     .chars = chars,
@@ -291,7 +284,8 @@ pub fn parseRecords(self: *FCF) !void {
 }
 
 pub fn toCSV(self: *FCF, writer: anytype) !void {
-    var out = std.ArrayList(u8).init(self.arena);
+    const alloc = self.arena.allocator();
+    var out = std.ArrayList(u8).init(alloc);
     defer out.deinit();
     var fieldCount: usize = 0;
     for (self.form.fields.items) |f| {

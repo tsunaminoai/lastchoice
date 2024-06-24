@@ -3,7 +3,22 @@ const Block = @import("block.zig");
 const FCF = @import("fcf.zig");
 
 /// The magic string indicating a FirstChoice file
-const MagicString = [14]u8{ 0x0C, 0x47, 0x45, 0x52, 0x42, 0x49, 0x4C, 0x44, 0x42, 0x33, 0x20, 0x20, 0x20, 0x00 };
+const MagicString = [14]u8{
+    0x0C,
+    0x47,
+    0x45,
+    0x52,
+    0x42,
+    0x49,
+    0x4C,
+    0x44,
+    0x42,
+    0x33,
+    0x20,
+    0x20,
+    0x20,
+    0x00,
+};
 
 /// The header is the first block in a FirstChoice file. It contains all the
 /// necessary fields to reconstruct the data.

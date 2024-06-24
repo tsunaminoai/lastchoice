@@ -57,9 +57,9 @@ const help =
 pub fn main() anyerror!void {
     var arena_allocator = std.heap.ArenaAllocator.init(gpa);
     defer arena_allocator.deinit();
-    const arena = arena_allocator.allocator();
+    const alloc = arena_allocator.allocator();
 
-    const arg_line = try std.process.argsAlloc(arena);
+    const arg_line = try std.process.argsAlloc(alloc);
     const args = arg_line[1..];
 
     if (args.len == 0) fatal("No args", .{});
@@ -127,7 +127,7 @@ pub fn main() anyerror!void {
                 'f' => tmp.form = true,
                 'o' => {
                     if (it.next()) |file| {
-                        outfile = try arena.alloc(u8, file.len);
+                        outfile = try alloc.alloc(u8, file.len);
                         @memcpy(outfile.?.ptr, file);
                     }
                 },
@@ -145,11 +145,11 @@ pub fn main() anyerror!void {
     const file = try std.fs.cwd().openFile(fname, .{});
     defer file.close();
     const data = try file.readToEndAlloc(
-        arena,
+        alloc,
         std.math.maxInt(u32),
     );
 
-    var f = FCF{ .arena = arena, .data = data };
+    var f = FCF{ .arena = arena_allocator, .data = data };
 
     f.parse() catch |err| switch (err) {
         error.InvalidMagic => fatal(
