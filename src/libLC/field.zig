@@ -35,11 +35,14 @@ remaining: ?[]u8 = null,
 
 pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
     alloc = allocator;
+    const slice = std.mem.sliceAsBytes(data);
     const self = try allocator.create(Field);
     errdefer allocator.destroy(self);
 
-    const len = std.mem.readInt(u16, data[0..2], .big);
-    const raw = data[2..];
+    std.debug.print("{x}\n", .{slice[0..2]});
+
+    const len = std.mem.readInt(u16, slice[0..2], .big);
+    const raw = std.mem.sliceAsBytes(slice[2..]);
     if (len > 1000) {
         std.debug.print("Field length {} is too long ({x})\n", .{ len, data[0..2] });
         return error.FieldTooLong;
@@ -115,10 +118,10 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
     self.type = fieldType;
     std.debug.print("\tString: \"{s}\"\n", .{string.items});
     std.debug.print("\tType: \"{s}\"\n", .{@tagName(fieldType)});
-    if (array_count < raw.len) {
+    if (array_count <= raw.len) {
         std.debug.print("\tFinal length: {}\"\n", .{array_count});
 
-        self.remaining = raw[array_count..];
+        self.remaining = raw[array_count..raw.len];
     }
 
     return self;
