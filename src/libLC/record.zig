@@ -5,6 +5,26 @@ const Schema = @import("schema.zig");
 const String = std.ArrayList(u8);
 
 fields: *std.ArrayList(*Field),
+values: *std.ArrayList(Value(Field.TypeTag)),
+
+const Record = @This();
+var alloc: std.mem.Allocator = undefined;
+
+pub fn init(allocator: std.mem.Allocator, schema: Schema) !*Record {
+    alloc = allocator;
+    var self = try allocator.create(Record);
+    errdefer self.deinit();
+
+    self.* = Record{
+        .fields = schema.fields,
+        .values = try std.ArrayList(Value(Field.TypeTag)).init(allocator),
+    };
+    return self;
+}
+
+pub fn deinit(self: *Record) void {
+    self.values.deinit();
+}
 
 pub fn Value(
     comptime Tag: Field.TypeTag,
