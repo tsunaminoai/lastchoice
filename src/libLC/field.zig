@@ -127,6 +127,11 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
         // std.debug.print("After: Len: {d}, array: {d}\n", .{ length_count, array_count });
     }
 
+    // trim string
+    while (string.getLast() == ' ') {
+        _ = string.pop();
+    }
+
     self.string = string;
     self.type = fieldType;
     // std.debug.print("\tString: \"{s}\"\n", .{string.items});

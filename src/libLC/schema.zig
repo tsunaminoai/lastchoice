@@ -46,7 +46,7 @@ fn parseFields(self: *Schema, header: Block.Header) !void {
     self.fields = fields;
     std.debug.print("Found {} Fields\n", .{fields.items.len});
     for (fields.items) |field| {
-        std.debug.print("{s}\n", .{field.string.items});
+        std.debug.print("'{s}'\t{s}\n", .{ field.string.items, @tagName(field.type) });
     }
 }
 
