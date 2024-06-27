@@ -3,7 +3,7 @@ const Field = @This();
 
 var alloc: std.mem.Allocator = undefined;
 
-const TypeTag = enum(u8) {
+pub const TypeTag = enum(u8) {
     General = 1,
     Numeric = 2,
     Date = 3,
@@ -22,11 +22,21 @@ const TypeTag = enum(u8) {
 };
 
 pub const Type = union(TypeTag) {
-    General: *[]u8,
+    General: ?[]u8,
     Numeric: f32,
-    Date: f32,
+    Date: u32,
     Time: f32,
     Bool: bool,
+
+    pub fn tagToType(tag: TypeTag) Type {
+        return switch (tag) {
+            .General => .{ .General = null },
+            .Numeric => .{ .Numeric = 0.0 },
+            .Date => .{ .Date = 0.0 },
+            .Time => .{ .Time = 0.0 },
+            .Bool => .{ .Bool = false },
+        };
+    }
 };
 
 type: TypeTag,
