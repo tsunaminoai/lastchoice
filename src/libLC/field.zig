@@ -21,8 +21,8 @@ const TypeTag = enum(u8) {
     }
 };
 
-const Type = union(TypeTag) {
-    General: []u8,
+pub const Type = union(TypeTag) {
+    General: *[]u8,
     Numeric: f32,
     Date: f32,
     Time: f32,
@@ -54,6 +54,7 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
     errdefer string.deinit();
     var fieldType: TypeTag = .General;
 
+    //TODO: Add text formatting
     while (length_count < len) {
         // std.debug.print("Before: Len: {d}, array: {d}\n", .{ length_count, array_count });
         const char = raw[length_count];
