@@ -32,7 +32,7 @@ pub const Type = enum(u16) {
     }
 
     pub fn fromSlice(int: []const u8) !Type {
-        return @This().fromInt(std.mem.readInt(u16, int, .big));
+        return Type.fromInt(std.mem.readInt(u16, int, .big));
     }
 };
 

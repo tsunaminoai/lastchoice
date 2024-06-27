@@ -30,12 +30,10 @@ pub fn init(
 }
 
 fn parseFields(self: *Schema, header: Block.Header) !void {
-    _ = header; // autofix
-
     var fields = std.ArrayList(*Field).init(alloc);
     errdefer fields.deinit();
 
-    var f = try Field.init(alloc, data[0..]);
+    var f = try Field.init(alloc, data);
     errdefer f.deinit();
     try fields.append(f);
 
@@ -43,9 +41,13 @@ fn parseFields(self: *Schema, header: Block.Header) !void {
         f = try Field.init(alloc, raw);
         errdefer f.deinit();
         try fields.append(f);
+        if (fields.items.len >= header.availableDBFields) break;
     }
     self.fields = fields;
     std.debug.print("Found {} Fields\n", .{fields.items.len});
+    for (fields.items) |field| {
+        std.debug.print("{s}\n", .{field.string.items});
+    }
 }
 
 fn readDataFromBlocks(
@@ -53,32 +55,31 @@ fn readDataFromBlocks(
     header: Block.Header,
     blocks: Block.BlockList,
 ) !void {
-    const form_data_len = 124;
     const first_block = blocks[header.formDefinitionIndex];
+
     const num_schema_blocks = std.mem.readInt(u16, first_block.data[0..2], .little);
-    std.debug.print("{d} blocks in the form\n", .{num_schema_blocks});
+    lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
+    // lines_length = std.mem.readInt(u16, first_block.data[4..6], .big);
+    // std.debug.print("{d} blocks in the form\n", .{num_schema_blocks});
 
-    {
-        data = try alloc.alloc(u8, num_schema_blocks * form_data_len);
-        errdefer self.deinit();
+    data = try alloc.alloc(u8, num_schema_blocks * 128);
+    errdefer self.deinit();
 
-        @memset(data, 0);
+    @memset(data, 0);
 
-        lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
-        lines_length = std.mem.readInt(u16, first_block.data[4..6], .big);
+    @memcpy(data[0..120], first_block.data[6..]);
+    var idx: usize = 120;
 
-        @memcpy(data[0..120], first_block.data[6..]);
-
-        for (1..num_schema_blocks - 1) |i| {
-            const block = blocks[header.formDefinitionIndex + i];
-            @memcpy(data[i * form_data_len .. i * form_data_len + form_data_len], block.data[2..]);
-        }
+    for (1..num_schema_blocks) |i| {
+        const block = blocks[header.formDefinitionIndex + i];
+        @memcpy(data[idx .. idx + block.data.len], &block.data);
+        idx += 126;
     }
 
-    std.debug.print("{d} lines in the form screen\n", .{lines_in_form_screen});
-    std.debug.print("{d} length of lines\n", .{lines_length});
-    std.debug.print("{}", .{header});
-    std.debug.print("Length of form data: {}, {}\n", .{ data.len, header.availableDBFields + header.formLength });
+    // std.debug.print("{d} lines in the form screen\n", .{lines_in_form_screen});
+    // std.debug.print("{d} length of lines\n", .{lines_length});
+    // std.debug.print("{}", .{header});
+    // std.debug.print("Length of form data: {}, {}\n", .{ data.len, header.availableDBFields + header.formLength });
 }
 
 pub fn deinit(self: *Schema) void {
