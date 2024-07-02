@@ -1,8 +1,9 @@
 const std = @import("std");
-const Block = @import("block.zig");
+const Blocks = @import("blocks.zig");
+const Text = @import("text.zig");
 const Field = @import("field.zig");
 
-fields: std.ArrayList(*Field),
+fields: std.ArrayList(Field),
 
 const Schema = @This();
 
@@ -14,31 +15,38 @@ var lines_length: u16 = 0;
 
 pub fn init(
     allocator: std.mem.Allocator,
-    header: Block.Header,
-    blocks: Block.BlockList,
+    header: Blocks.Header,
+    blocks: Blocks.BlockList,
 ) !*Schema {
     alloc = allocator;
     const self = try alloc.create(Schema);
     {
         try self.readDataFromBlocks(header, blocks);
 
-        try self.parseFields(header);
+        try self.readFields(header);
     }
     errdefer self.deinit();
 
     return self;
 }
 
-fn parseFields(self: *Schema, header: Block.Header) !void {
-    var fields = std.ArrayList(*Field).init(alloc);
+fn readFields(self: *Schema, header: Blocks.Header) !void {
+    var fields = std.ArrayList(Field.Field(Field.TypeTag)).init(alloc);
     errdefer fields.deinit();
 
-    var f = try Field.init(alloc, data);
+    var name = try Text.init(alloc, data);
+    errdefer name.deinit();
+    var f = switch (name.field_type.?) {
+        .General => try Field.Field(.General).init(alloc, name),
+        else => undefined,
+    };
     errdefer f.deinit();
+
     try fields.append(f);
 
     while (f.remaining) |raw| {
-        f = try Field.init(alloc, raw);
+        name = try Text.init(alloc, raw);
+        f = try Field.init(alloc, name);
         errdefer f.deinit();
         try fields.append(f);
         if (fields.items.len >= header.availableDBFields) break;
@@ -52,28 +60,28 @@ fn parseFields(self: *Schema, header: Block.Header) !void {
 
 fn readDataFromBlocks(
     self: *Schema,
-    header: Block.Header,
-    blocks: Block.BlockList,
+    header: Blocks.Header,
+    blocks: Blocks.BlockList,
 ) !void {
-    const first_block = blocks[header.formDefinitionIndex];
+    const first_block = blocks[header.formDefinitionIndex].FormDescriptionView;
 
-    const num_schema_blocks = std.mem.readInt(u16, first_block.data[0..2], .little);
-    lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
+    // const num_schema_blocks = std.mem.readInt(u16, first_block.data[0..2], .little);
+    // lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
     // lines_length = std.mem.readInt(u16, first_block.data[4..6], .big);
     // std.debug.print("{d} blocks in the form\n", .{num_schema_blocks});
 
-    data = try alloc.alloc(u8, num_schema_blocks * 128);
+    data = try alloc.alloc(u8, first_block.num_blocks * @sizeOf(Blocks.Block));
     errdefer self.deinit();
 
     @memset(data, 0);
 
-    @memcpy(data[0..120], first_block.data[6..]);
-    var idx: usize = 120;
+    @memcpy(data, &first_block.data);
+    var idx: usize = first_block.data.len;
 
-    for (1..num_schema_blocks) |i| {
-        const block = blocks[header.formDefinitionIndex + i];
+    for (1..first_block.num_blocks) |i| {
+        const block = blocks[header.formDefinitionIndex + i].FormDescriptionContinuation;
         @memcpy(data[idx .. idx + block.data.len], &block.data);
-        idx += 126;
+        idx += block.data.len;
     }
 
     // std.debug.print("{d} lines in the form screen\n", .{lines_in_form_screen});

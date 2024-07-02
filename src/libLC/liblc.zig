@@ -1,5 +1,5 @@
 const std = @import("std");
-const Block = @import("block.zig");
+const Blocks = @import("blocks.zig");
 pub const File = @import("file.zig");
 const Schema = @import("schema.zig");
 

@@ -1,12 +1,12 @@
 const std = @import("std");
-const Block = @import("block.zig");
+const Blocks = @import("blocks.zig");
 const Schema = @import("schema.zig");
 const Record = @import("record.zig");
 
 const LCFile = @This();
 
-blocks: Block.BlockList,
-header: Block.Header,
+blocks: Blocks.BlockList,
+header: Blocks.Header,
 schema: *Schema = undefined,
 
 var raw: []u8 = undefined;
@@ -26,8 +26,8 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
     );
     errdefer alloc.free(raw);
     self.* = .{
-        .header = try Block.Header.fromBytes(raw[0..128]),
-        .blocks = try Block.fromBytes(raw[128..]),
+        .header = try Blocks.Header.fromBytes(raw[0..128]),
+        .blocks = try Blocks.fromBytes(raw[128..]),
     };
     self.schema = try Schema.init(alloc, self.header, self.blocks);
     errdefer self.deinit();
@@ -53,7 +53,7 @@ test "LCFile" {
     try std.testing.expectEqual(file.blocks.len, file.header.totalFileBlocks);
 
     const block = file.blocks[0];
-    try std.testing.expectEqual(block.type, Block.Type.Empty);
+    try std.testing.expectEqual(block.type, Blocks.Type.Empty);
     // for (file.blocks) |b| {
     //     std.debug.print("{s}\n", .{@tagName(b.type)});
     // }

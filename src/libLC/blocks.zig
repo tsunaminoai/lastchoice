@@ -3,7 +3,7 @@ const Schema = @import("schema.zig");
 
 const Block_Size = 128;
 
-const Block = @This();
+// const Block = @This();
 
 pub const BlockList = []align(1) Block;
 
@@ -37,7 +37,7 @@ pub const Type = enum(u16) {
     }
 };
 
-pub const BlockU = union(Type) {
+pub const Block = union(Type) {
     Empty: cBlock,
     DataContinuation: cBlock,
     FormDescriptionContinuation: cBlock,
@@ -49,7 +49,7 @@ pub const BlockU = union(Type) {
     Formula: cBlock,
 };
 const FDV = extern struct {
-    type: std.meta,
+    type: Type,
     num_blocks: u16,
     lines_in_form_screen: u16,
     lines_length: u16,
@@ -68,7 +68,7 @@ test "union" {
         0x90, 0xf9, 0x90, 0x81, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
     };
     try std.testing.expectEqual(bytes[1], 0x82);
-    const block = BlockU{ .FormDescriptionView = @bitCast(bytes) };
+    const block = Block{ .FormDescriptionView = @bitCast(bytes) };
     std.debug.print("{X}\n", .{block.FormDescriptionView.type});
     std.debug.print("{any}\n", .{block});
 }
