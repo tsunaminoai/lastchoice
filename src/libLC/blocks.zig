@@ -5,7 +5,7 @@ const Block_Size = 128;
 
 // const Block = @This();
 
-pub const BlockList = []align(1) Block;
+pub const BlockList = []align(128) Block;
 
 type: Type,
 data: [126]u8,
@@ -69,7 +69,7 @@ test "union" {
     };
     try std.testing.expectEqual(bytes[1], 0x82);
     const block = Block{ .FormDescriptionView = @bitCast(bytes) };
-    std.debug.print("{X}\n", .{block.FormDescriptionView.type});
+    // std.debug.print("{X}\n", .{block.FormDescriptionView.type});
     std.debug.print("{any}\n", .{block});
 }
 
@@ -77,8 +77,10 @@ pub fn fromBytes(data: []u8) !BlockList {
     if (data.len % Block_Size != 0) {
         return error.InvalidBlockData;
     }
+    const bl: BlockList = @alignCast(data[0..data.len]);
+    _ = bl; // autofix
 
-    return std.mem.bytesAsSlice(Block, data);
+    return @as(BlockList[0 .. data.len % Block_Size], @alignCast(data));
 }
 
 const cBlock = extern struct {
