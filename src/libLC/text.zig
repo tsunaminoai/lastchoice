@@ -20,7 +20,23 @@ const TextData = struct {
     }
 };
 
-pub fn init(allocator: std.mem.Allocator, data: []u8) !*Text {
+/// Initializes a Text directly
+pub fn init(allocator: std.mem.Allocator, txt: []const u8) !*Text {
+    alloc = allocator;
+    const self = try allocator.create(Text);
+    errdefer allocator.destroy(self);
+
+    var str = std.ArrayList(u8).init(alloc);
+    errdefer str.deinit();
+    try str.appendSlice(txt);
+    self.* = .{
+        .string = str,
+    };
+    return self;
+}
+
+/// Initializes a Text from a byte array.
+pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     alloc = allocator;
     const self = try allocator.create(Text);
     errdefer allocator.destroy(self);
@@ -144,10 +160,10 @@ test "Text" {
         0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
         0x20, 0x20, 0x20, 0x20,
     };
-    var t = try Text.init(std.testing.allocator, &bytes);
+    var t = try Text.initFromBytes(std.testing.allocator, &bytes);
     defer t.deinit();
 
-    std.debug.print("''{s}''\n", .{t.string.items});
+    // std.debug.print("''{s}''\n", .{t.string.items});
     try std.testing.expect(std.mem.eql(u8, t.string.items, "First name"));
     try std.testing.expectEqual(t.field_type.?, .General);
 }
