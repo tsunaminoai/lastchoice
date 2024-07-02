@@ -10,15 +10,9 @@ pub const TypeTag = enum(u8) {
     Date = 3,
     Time = 4,
     Bool = 5,
-    pub fn fromInt(int: u8) ?TypeTag {
-        switch (int) {
-            1 => return .General,
-            2 => return .Numeric,
-            3 => return .Date,
-            4 => return .Time,
-            5 => return .Bool,
-            else => return null,
-        }
+    pub fn fromInt(value: u8) ?TypeTag {
+        if (value < 1 or value > 5) return null;
+        return @enumFromInt(value);
     }
 };
 
@@ -39,13 +33,13 @@ pub const Type = union(TypeTag) {
         };
     }
 
-    pub fn fromSlice(comptime tag: TypeTag, allocator: std.mem.Allocator, text: []const u8) !Type.typeFromTag(tag) {
+    pub fn fromSlice(comptime tag: TypeTag, allocator: std.mem.Allocator, text: []const u8) !Type {
         return switch (tag) {
-            .General => try Text.init(allocator, text),
-            .Numeric => try std.fmt.parseFloat(f32, text),
-            .Date => try Type.parseDate(text),
-            .Time => try Type.parseTime(text),
-            .Bool => if (text[0] == 'Y') true else false,
+            .General => .{ .General = try Text.init(allocator, text) },
+            .Numeric => .{ .Numeric = try std.fmt.parseFloat(f32, text) },
+            .Date => .{ .Date = try Type.parseDate(text) },
+            .Time => .{ .Time = try Type.parseTime(text) },
+            .Bool => .{ .Bool = if (text[0] == 'Y') true else false },
         };
     }
 
@@ -71,49 +65,53 @@ pub const Type = union(TypeTag) {
     }
 };
 
-pub fn Field(comptime Tag: TypeTag) type {
-    const f = struct {
-        name: *Text,
-        values: std.ArrayList(Type.typeFromTag(Tag)),
-        type: TypeTag = Tag,
+pub const Base = struct {
+    name: *Text,
+    values: std.ArrayList(Type),
+    type: TypeTag,
 
-        const F = @This();
+    var alloc: std.mem.Allocator = undefined;
 
-        var alloc: std.mem.Allocator = undefined;
+    pub fn init(allocator: std.mem.Allocator, name: *Text, tag: TypeTag) !*Base {
+        alloc = allocator;
+        const self = try allocator.create(Base);
+        errdefer allocator.destroy(self);
+        self.* = .{
+            .name = name,
+            .type = tag,
+            .values = std.ArrayList(Type).init(alloc),
+        };
+        return self;
+    }
+    pub fn initWithName(allocator: std.mem.Allocator, name: []const u8, tag: TypeTag) !*Base {
+        alloc = allocator;
+        const self = try allocator.create(Base);
+        errdefer allocator.destroy(self);
+        self.* = .{
+            .name = try Text.init(alloc, name),
+            .type = tag,
+            .values = std.ArrayList(Type).init(alloc),
+        };
+        return self;
+    }
 
-        pub fn init(allocator: std.mem.Allocator, name: *Text) !F {
-            alloc = allocator;
-            return F{
-                .name = name,
-                .values = std.ArrayList(Type.typeFromTag(Tag)).init(alloc),
-            };
-        }
-        pub fn initWithName(allocator: std.mem.Allocator, name: []const u8) !F {
-            alloc = allocator;
-            return F{
-                .name = try Text.init(alloc, name),
-                .values = std.ArrayList(Type.typeFromTag(Tag)).init(alloc),
-            };
-        }
-        pub fn deinit(self: F) void {
-            if (Tag == .General) {
-                for (self.values.items) |value| {
-                    if (value) |str| str.deinit();
-                }
+    pub fn deinit(self: *Base) void {
+        if (self.type == .General) {
+            for (self.values.items) |value| {
+                if (value.General) |str| str.deinit();
             }
-            self.values.deinit();
-            self.name.deinit();
         }
-        pub fn addValue(self: *F, value: Type.typeFromTag(Tag)) !void {
-            try self.values.append(value);
-        }
-        pub fn getValues(self: F) []Type.typeFromTag(Tag) {
-            return self.values.items;
-        }
-    };
-
-    return f;
-}
+        self.values.deinit();
+        self.name.deinit();
+        alloc.destroy(self);
+    }
+    pub fn addValue(self: *Base, value: Type) !void {
+        try self.values.append(value);
+    }
+    pub fn getValues(self: Base) []Type {
+        return self.values.items;
+    }
+};
 
 test "Field" {
     var bytes: [0x32 + 2]u8 = [_]u8{
@@ -128,31 +126,31 @@ test "Field" {
     const alloc = std.testing.allocator;
     const t = try Text.initFromBytes(alloc, &bytes);
 
-    var f = try Field(.General).init(alloc, t);
+    var f = try Base.init(alloc, t, .General);
     defer f.deinit();
 
     try std.testing.expect(std.mem.eql(u8, f.name.string.items, "First name"));
     try std.testing.expectEqual(@TypeOf(f.values.items), []?*Text);
     try f.addValue(try Type.fromSlice(.General, alloc, "Second name"));
 
-    var n = try Field(.Numeric).initWithName(alloc, "Numeric field");
+    var n = try Base.initWithName(alloc, "Numeric field", .Numeric);
     defer n.deinit();
 
     try n.addValue(try Type.fromSlice(.Numeric, alloc, "10.5"));
-    try std.testing.expectEqual(n.values.items[0], 10.5);
+    try std.testing.expectEqual(n.values.items[0].Numeric, 10.5);
 
-    var d = try Field(.Date).initWithName(alloc, "Date field");
+    var d = try Base.initWithName(alloc, "Date field", .Date);
     defer d.deinit();
 
     try d.addValue(try Type.fromSlice(.Date, alloc, "10/11/12"));
     try d.addValue(try Type.fromSlice(.Date, alloc, "10/11/89"));
-    try std.testing.expectEqual(d.values.items[0], 20121011);
-    try std.testing.expectEqual(d.values.items[1], 19891011);
+    try std.testing.expectEqual(d.values.items[0].Date, 20121011);
+    try std.testing.expectEqual(d.values.items[1].Date, 19891011);
 
-    var b = try Field(.Bool).initWithName(alloc, "Bool field");
+    var b = try Base.initWithName(alloc, "Bool field", .Bool);
     defer b.deinit();
     try b.addValue(try Type.fromSlice(.Bool, alloc, "Y"));
     try b.addValue(try Type.fromSlice(.Bool, alloc, "N"));
-    try std.testing.expectEqual(b.values.items[0], true);
-    try std.testing.expectEqual(b.values.items[1], false);
+    try std.testing.expectEqual(b.values.items[0].Bool, true);
+    try std.testing.expectEqual(b.values.items[1].Bool, false);
 }

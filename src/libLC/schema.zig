@@ -3,7 +3,7 @@ const Blocks = @import("blocks.zig");
 const Text = @import("text.zig");
 const Field = @import("field.zig");
 
-fields: std.ArrayList(Field),
+fields: std.ArrayList(*Field.Base),
 
 const Schema = @This();
 
@@ -31,33 +31,25 @@ pub fn init(
 }
 
 fn readFields(self: *Schema, header: Blocks.Header) !void {
-    var fields = std.ArrayList(Field).init(alloc);
+    var fields = std.ArrayList(*Field.Base).init(alloc);
     errdefer fields.deinit();
 
     var name = try Text.init(alloc, data);
     errdefer name.deinit();
-    var f = switch (name.field_type.?) {
-        .General => try Field.Field(.General).init(alloc, name),
-        .Date => try Field.Field(.Date).init(alloc, name),
-        .Time => try Field.Field(.Time).init(alloc, name),
-        .Numeric => try Field.Field(.Numeric).init(alloc, name),
-        .Bool => try Field.Field(.Bool).init(alloc, name),
-    };
-    errdefer f.deinit();
+    var f = try Field.Base.init(alloc, name, name.field_type.?);
 
     try fields.append(f);
 
-    while (f.remaining) |raw| {
+    while (name.remaining) |raw| {
         name = try Text.init(alloc, raw);
-        f = try Field.init(alloc, name);
-        errdefer f.deinit();
+        f = try Field.Base.init(alloc, name, name.field_type.?);
         try fields.append(f);
         if (fields.items.len >= header.availableDBFields) break;
     }
     self.fields = fields;
     std.debug.print("Found {} Fields\n", .{fields.items.len});
     for (fields.items) |field| {
-        std.debug.print("'{s}'\t{s}\n", .{ field.string.items, @tagName(field.type) });
+        std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.type) });
     }
 }
 
