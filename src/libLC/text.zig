@@ -9,18 +9,26 @@ field_type: ?Field.TypeTag = null,
 
 remaining: ?[]u8 = null,
 
+const TextData = struct {
+    len: u16,
+    data: []u8,
+
+    pub fn fromBytes(data: []u8) TextData {
+        const len = std.mem.readInt(u16, data[0..2], .big);
+        std.debug.assert(len <= data.len - 2);
+        return TextData{ .len = len, .data = data[2 .. 2 + len] };
+    }
+};
+
 pub fn init(allocator: std.mem.Allocator, data: []u8) !*Text {
     alloc = allocator;
     const self = try allocator.create(Text);
     errdefer allocator.destroy(self);
 
-    const len = std.mem.readInt(u16, data[0..2], .big);
-    const raw = data[2..];
+    const td = TextData.fromBytes(data);
+
     // std.debug.print("{X}\n", .{data[0..8]});
-    if (len > 1000) {
-        std.debug.print("Text length {} is too long ({x})\n", .{ len, data[0..2] });
-        return error.TextTooLong;
-    }
+
     // std.debug.print("Field:\n\tlen: {d}\n", .{len});
 
     var length_count: usize = 0;
@@ -31,9 +39,9 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Text {
     var fieldType: ?Field.TypeTag = null;
 
     //TODO: Add text formatting
-    while (length_count < len) {
+    while (length_count < td.len) {
         // std.debug.print("Before: Len: {d}, array: {d}\n", .{ length_count, array_count });
-        const char = raw[length_count];
+        const char = td.data[length_count];
         length_count += 1;
         array_count += 1;
 
@@ -53,13 +61,13 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Text {
         // char >= 0x80
         else {
             const strippedChar = char & 0x7f;
-            const d = raw[array_count];
+            const d = td.data[array_count];
             array_count += 1;
             length_count += 1;
             switch (d) {
                 0xd0...0xdf => {
                     //  background text or field
-                    const e = raw[array_count];
+                    const e = td.data[array_count];
                     length_count += 1;
                     array_count += 1;
                     // std.debug.print("\tfound background: '{c}'\n", .{strippedChar});
@@ -87,7 +95,7 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Text {
                 },
                 0xC0...0xCF => {
                     // regular text
-                    const e = raw[array_count];
+                    const e = td.data[array_count];
                     _ = e; // autofix
                     array_count += 1;
                     length_count += 1;
@@ -116,7 +124,7 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Text {
     // std.debug.print("\tArray count: {}\"\n", .{array_count});
     // std.debug.print("\tLength count: {}\"\n", .{array_count});
 
-    self.remaining = raw[array_count..];
+    self.remaining = td.data[array_count..];
 
     return self;
 }
