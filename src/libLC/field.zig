@@ -35,9 +35,22 @@ pub const Type = union(TypeTag) {
             .Bool => .{ .Bool = if (text[0] == 'Y') true else false },
         };
     }
+
+    /// Parses a date in the format "MM/DD/YY"
+    /// Returns a u32 in the format YYYYMMDD (ISO 8601 represent)
     pub fn parseDate(text: []const u8) !u32 {
-        _ = text; // autofix
-        return 0;
+        if (text.len != 8) return error.InvalidDate;
+        const month = try std.fmt.parseInt(u32, text[0..2], 10);
+        const day = try std.fmt.parseInt(u32, text[3..5], 10);
+        var year = try std.fmt.parseInt(u32, text[6..], 10);
+        // Its 2024 and I'm fixing a Y2K bug
+        if (year < 70) {
+            year += 2000;
+        } else {
+            year += 1900;
+        }
+
+        return year * 10000 + month * 100 + day;
     }
     pub fn parseTime(text: []const u8) !f32 {
         _ = text; // autofix
@@ -103,5 +116,14 @@ test "Field" {
     try n.addValue(try Type.fromSlice(.Numeric, "10.5"));
     try std.testing.expectEqual(n.values.items[0], Type{ .Numeric = 10.5 });
 
-    std.debug.print("{}\n", .{n.values.items[0]});
+    const t3 = try Text.init(std.testing.allocator, "Date field");
+    var d = try Field(.Numeric).init(std.testing.allocator, t3);
+    defer d.deinit();
+
+    try d.addValue(try Type.fromSlice(.Date, "10/11/12"));
+    try d.addValue(try Type.fromSlice(.Date, "10/11/89"));
+    try std.testing.expectEqual(d.values.items[0], Type{ .Date = 20121011 });
+    try std.testing.expectEqual(d.values.items[1], Type{ .Date = 19891011 });
+
+    std.debug.print("{}\n", .{d.values.items[0]});
 }
