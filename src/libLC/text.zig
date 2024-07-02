@@ -150,6 +150,10 @@ pub fn deinit(self: *Text) void {
     alloc.destroy(self);
 }
 
+pub fn asSlice(self: *Text) []u8 {
+    return self.string.items;
+}
+
 test "Text" {
     var bytes: [0x32 + 2]u8 = [_]u8{
         0x00, 0x32, 0xc6, 0x90, 0xe9, 0x90, 0xf2, 0x90,

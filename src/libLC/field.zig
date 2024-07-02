@@ -1,6 +1,9 @@
 const std = @import("std");
 const Text = @import("text.zig");
 
+name: Text,
+values: std.ArrayList(Type),
+
 pub const TypeTag = enum(u8) {
     General = 1,
     Numeric = 2,

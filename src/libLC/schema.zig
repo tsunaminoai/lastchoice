@@ -31,14 +31,17 @@ pub fn init(
 }
 
 fn readFields(self: *Schema, header: Blocks.Header) !void {
-    var fields = std.ArrayList(Field.Field(Field.TypeTag)).init(alloc);
+    var fields = std.ArrayList(Field).init(alloc);
     errdefer fields.deinit();
 
     var name = try Text.init(alloc, data);
     errdefer name.deinit();
     var f = switch (name.field_type.?) {
         .General => try Field.Field(.General).init(alloc, name),
-        else => undefined,
+        .Date => try Field.Field(.Date).init(alloc, name),
+        .Time => try Field.Field(.Time).init(alloc, name),
+        .Numeric => try Field.Field(.Numeric).init(alloc, name),
+        .Bool => try Field.Field(.Bool).init(alloc, name),
     };
     errdefer f.deinit();
 
