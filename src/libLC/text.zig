@@ -146,14 +146,10 @@ pub fn format(self: Text, fmt: []const u8, options: anytype, writer: std.io.AnyW
         \\Text
         \\  .string = ''{s}'',
         \\  .field_type = {?},
-        \\  .remaining = {s},
+        \\  .len = {},
         \\
         \\
-    , .{
-        self.string.items,
-        self.field_type,
-        if (self.remaining) |_| "Yes" else "No",
-    });
+    , .{ self.string.items, self.field_type, self.len });
 }
 
 test "Text" {

@@ -35,7 +35,6 @@ fn readFields(self: *Schema, header: Blocks.Header) !void {
     errdefer fields.deinit();
 
     var name = try Text.initFromBytes(alloc, data);
-    var name = try Text.initFromBytes(alloc, data);
     errdefer name.deinit();
 
     var f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {

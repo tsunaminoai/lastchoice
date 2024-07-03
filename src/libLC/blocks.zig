@@ -143,7 +143,7 @@ pub const Header = extern struct {
         if (!head.isValid())
             return error.InvalidMagicString;
         head.formDefinitionIndex -= 1; // removing the header block
-        head.formDefinitionIndex -= 1; // Accouting for 1 indexing
+        // head.formDefinitionIndex -= 1; // Accouting for 1 indexing
         return head;
     }
 
