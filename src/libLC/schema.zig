@@ -35,28 +35,31 @@ fn readFields(self: *Schema, header: Blocks.Header) !void {
     errdefer fields.deinit();
 
     var name = try Text.initFromBytes(alloc, data);
+    var name = try Text.initFromBytes(alloc, data);
     errdefer name.deinit();
 
     var f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
-        std.debug.print("Invalid Field Name: {}\n", .{name});
-        return error.InvalidFieldName;
+        std.debug.print("Field tag not found for field name text: {}\n", .{name});
+        return error.FieldTypeNotFound;
     };
+    errdefer f.deinit();
+    // std.debug.print("Found field: {}\n", .{name});
 
     try fields.append(f);
-
     var bytes_read: usize = name.len;
 
-    while (bytes_read < data.len) {
-        std.debug.print("Read {} bytes\n", .{bytes_read});
+    while (bytes_read < data.len - 1) {
         name = try Text.initFromBytes(alloc, data[bytes_read..data.len]);
-        std.debug.print("Found Name: {}\n", .{name});
         f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
-            std.debug.print("Invalid Field Name: {}\n", .{name});
-            return error.InvalidFieldName;
+            std.debug.print("Field tag not found for field name text: {}\n", .{name});
+            return error.FieldTypeNotFound;
         };
+        errdefer f.deinit();
+        // std.debug.print("Found field: {}\n", .{name});
         try fields.append(f);
         if (fields.items.len >= header.availableDBFields) break;
         bytes_read += name.len;
+        std.debug.print("We've read {} bytes\n", .{bytes_read});
     }
     self.fields = fields;
     std.debug.print("Found {} Fields\n", .{fields.items.len});

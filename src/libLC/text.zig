@@ -42,7 +42,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     var fieldType: ?Field.TypeTag = null;
 
     //TODO: Add text formatting
-    while (length_count < len) {
+    while (length_count < slice.len) {
         // std.debug.print("Before: Len: {d}, array: {d}\n", .{ length_count, array_count });
         const char = slice[length_count];
         length_count += 1;
@@ -136,6 +136,24 @@ pub fn deinit(self: *Text) void {
 
 pub fn asSlice(self: *Text) []u8 {
     return self.string.items;
+}
+
+pub fn format(self: Text, fmt: []const u8, options: anytype, writer: std.io.AnyWriter) !void {
+    _ = fmt;
+    _ = options;
+    try writer.print(
+        \\
+        \\Text
+        \\  .string = ''{s}'',
+        \\  .field_type = {?},
+        \\  .remaining = {s},
+        \\
+        \\
+    , .{
+        self.string.items,
+        self.field_type,
+        if (self.remaining) |_| "Yes" else "No",
+    });
 }
 
 test "Text" {

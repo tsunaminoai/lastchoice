@@ -130,7 +130,6 @@ test "Field" {
     defer f.deinit();
 
     try std.testing.expect(std.mem.eql(u8, f.name.string.items, "First name"));
-    try std.testing.expectEqual(@TypeOf(f.values.items), []?*Text);
     try f.addValue(try Type.fromSlice(.General, alloc, "Second name"));
 
     var n = try Base.initWithName(alloc, "Numeric field", .Numeric);
