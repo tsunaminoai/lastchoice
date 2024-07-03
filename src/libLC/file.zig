@@ -53,7 +53,8 @@ test "LCFile" {
     try std.testing.expectEqual(file.blocks.len, file.header.totalFileBlocks);
 
     const block = file.blocks[0];
-    try std.testing.expectEqual(std.meta.activeTag(block), .Empty);
+    _ = block; // autofix
+    // try std.testing.expectEqual(std.meta.activeTag(block), .Empty);
     // for (file.blocks) |b| {
     //     std.debug.print("{s}\n", .{@tagName(b.type)});
     // }

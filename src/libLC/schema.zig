@@ -64,13 +64,14 @@ fn readDataFromBlocks(
     // lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
     // lines_length = std.mem.readInt(u16, first_block.data[4..6], .big);
     // std.debug.print("{d} blocks in the form\n", .{num_schema_blocks});
-
-    data = try alloc.alloc(u8, first_block.num_blocks * @sizeOf(Blocks.Block));
+    std.debug.print("{any}\n", .{header});
+    std.debug.print("{any}\n", .{first_block});
+    data = try alloc.alloc(u8, first_block.num_blocks * Blocks.Block_Size);
     errdefer self.deinit();
 
     @memset(data, 0);
 
-    @memcpy(data, &first_block.data);
+    @memcpy(data[0..first_block.data.len], &first_block.data);
     var idx: usize = first_block.data.len;
 
     for (1..first_block.num_blocks) |i| {

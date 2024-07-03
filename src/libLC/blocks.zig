@@ -1,11 +1,11 @@
 const std = @import("std");
 const Schema = @import("schema.zig");
 
-const Block_Size = 128;
+pub const Block_Size = 128;
 
 // const Block = @This();
 
-pub const BlockList = []align(128) Block;
+pub const BlockList = []align(1) Block;
 
 type: Type,
 data: [126]u8,
@@ -37,7 +37,7 @@ pub const Type = enum(u16) {
     }
 };
 
-pub const Block = union(Type) {
+pub const Block = extern union {
     Empty: cBlock,
     DataContinuation: cBlock,
     FormDescriptionContinuation: cBlock,
@@ -77,10 +77,10 @@ pub fn fromBytes(data: []u8) !BlockList {
     if (data.len % Block_Size != 0) {
         return error.InvalidBlockData;
     }
-    const bl: BlockList = @alignCast(data[0..data.len]);
-    _ = bl; // autofix
-
-    return @as(BlockList[0 .. data.len % Block_Size], @alignCast(data));
+    var ptr = data.ptr;
+    std.debug.print("block: {} data: {}\n", .{ @sizeOf(Block), data.len });
+    const slice = std.mem.bytesAsSlice(Block, ptr[Block_Size..data.len]);
+    return slice;
 }
 
 const cBlock = extern struct {
@@ -132,7 +132,8 @@ pub const Header = extern struct {
         var head = std.mem.bytesToValue(Header, raw);
         if (!head.isValid())
             return error.InvalidMagicString;
-        head.formDefinitionIndex -= 1;
+        head.formDefinitionIndex -= 1; // removing the header block
+        head.formDefinitionIndex -= 1; // Accouting for 1 indexing
         return head;
     }
 
