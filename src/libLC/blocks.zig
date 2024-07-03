@@ -5,7 +5,7 @@ const Block_Size = 128;
 
 // const Block = @This();
 
-pub const BlockList = []align(128) Block;
+pub const BlockList = []align(1) Block;
 
 type: Type,
 data: [126]u8,
@@ -37,17 +37,22 @@ pub const Type = enum(u16) {
     }
 };
 
-pub const Block = union(Type) {
-    Empty: cBlock,
-    DataContinuation: cBlock,
-    FormDescriptionContinuation: cBlock,
-    TableViewContinuation: cBlock,
-    FormulaContinuation: cBlock,
-    DataRecord: cBlock,
-    FormDescriptionView: FDV,
-    TableView: cBlock,
-    Formula: cBlock,
+const BaseBlock = extern struct {
+    type: Type,
+    data: [126]u8,
 };
+pub const Block = extern union {
+    Empty: BaseBlock,
+    DataContinuation: BaseBlock,
+    FormDescriptionContinuation: BaseBlock,
+    TableViewContinuation: BaseBlock,
+    FormulaContinuation: BaseBlock,
+    DataRecord: BaseBlock,
+    FormDescriptionView: FDV,
+    TableView: BaseBlock,
+    Formula: BaseBlock,
+};
+
 const FDV = extern struct {
     type: Type,
     num_blocks: u16,
@@ -57,6 +62,8 @@ const FDV = extern struct {
 };
 
 test "union" {
+    try std.testing.expectEqual(@sizeOf(FDV), 128);
+    try std.testing.expectEqual(@sizeOf(Block), 128);
     const bytes: [128]u8 = [_]u8{
         0x00, 0x82, 0x00, 0x04, 0xd0, 0x01, 0x0e, 0x00, 0x32, 0x00, 0x90, 0xc6, 0x90, 0xe9, 0x90, 0xf2,
         0x90, 0xf3, 0x90, 0xf4, 0x90, 0x80, 0x90, 0xee, 0x90, 0xe1, 0x90, 0xed, 0x90, 0xe5, 0x90, 0x81,
@@ -77,16 +84,9 @@ pub fn fromBytes(data: []u8) !BlockList {
     if (data.len % Block_Size != 0) {
         return error.InvalidBlockData;
     }
-    const bl: BlockList = @alignCast(data[0..data.len]);
-    _ = bl; // autofix
-
-    return @as(BlockList[0 .. data.len % Block_Size], @alignCast(data));
+    // std.debug.print("block: {}, data: {}\n", .{ @sizeOf(Block), data.len });
+    return std.mem.bytesAsSlice(Block, data);
 }
-
-const cBlock = extern struct {
-    type: Type,
-    data: [126]u8,
-};
 
 /// The magic string indicating a FirstChoice file
 const MagicString = [14]u8{

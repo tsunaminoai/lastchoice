@@ -15,7 +15,8 @@
         "zig build test"
       ],
       "test-watch": [
-        "watchexec --exts zig --watch src 'clear && zig build test'"
+        "if [ @ -z $1 ]; then FILTER=''; else FILTER='--filter $1'; fi",
+        "watchexec --exts zig --watch src 'clear && zig build test $FILTER'"
       ],
       "build": [
         "zig build"

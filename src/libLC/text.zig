@@ -6,18 +6,23 @@ var alloc: std.mem.Allocator = undefined;
 
 string: std.ArrayList(u8),
 field_type: ?Field.TypeTag = null,
+len: usize = 0,
 
 remaining: ?[]u8 = null,
+
+const cData = extern struct {
+    len: u16,
+    ptr: [*]u8,
+
+    pub fn toSlice(self: cData) []u8 {
+        const l = @byteSwap(self.len);
+        return self.ptr[0..l];
+    }
+};
 
 const TextData = struct {
     len: u16,
     data: []u8,
-
-    pub fn fromBytes(data: []u8) TextData {
-        const len = std.mem.readInt(u16, data[0..2], .big);
-        std.debug.assert(len <= data.len - 2);
-        return TextData{ .len = len, .data = data[2 .. 2 + len] };
-    }
 };
 
 /// Initializes a Text directly
@@ -31,6 +36,7 @@ pub fn init(allocator: std.mem.Allocator, txt: []const u8) !*Text {
     try str.appendSlice(txt);
     self.* = .{
         .string = str,
+        .len = txt.len,
     };
     return self;
 }
@@ -41,11 +47,9 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     const self = try allocator.create(Text);
     errdefer allocator.destroy(self);
 
-    const td = TextData.fromBytes(data);
-
-    // std.debug.print("{X}\n", .{data[0..8]});
-
-    // std.debug.print("Field:\n\tlen: {d}\n", .{len});
+    const len: u16 = std.mem.readInt(u16, data[0..2], .big);
+    const slice = data[2..];
+    // std.debug.print("Text Data: ({}){X} \n", .{ len, slice });
 
     var length_count: usize = 0;
     var array_count: usize = 0;
@@ -55,9 +59,9 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     var fieldType: ?Field.TypeTag = null;
 
     //TODO: Add text formatting
-    while (length_count < td.len) {
+    while (length_count < slice.len) {
         // std.debug.print("Before: Len: {d}, array: {d}\n", .{ length_count, array_count });
-        const char = td.data[length_count];
+        const char = slice[length_count];
         length_count += 1;
         array_count += 1;
 
@@ -77,13 +81,13 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
         // char >= 0x80
         else {
             const strippedChar = char & 0x7f;
-            const d = td.data[array_count];
+            const d = slice[array_count];
             array_count += 1;
             length_count += 1;
             switch (d) {
                 0xd0...0xdf => {
                     //  background text or field
-                    const e = td.data[array_count];
+                    const e = slice[array_count];
                     length_count += 1;
                     array_count += 1;
                     // std.debug.print("\tfound background: '{c}'\n", .{strippedChar});
@@ -111,7 +115,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
                 },
                 0xC0...0xCF => {
                     // regular text
-                    const e = td.data[array_count];
+                    const e = slice[array_count];
                     _ = e; // autofix
                     array_count += 1;
                     length_count += 1;
@@ -133,14 +137,21 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
         _ = string.pop();
     }
 
-    self.string = string;
-    self.field_type = fieldType;
-    // std.debug.print("\tString: \"{s}\"\n", .{string.items});
-    // std.debug.print("\tType: \"{s}\"\n", .{@tagName(fieldType)});
-    // std.debug.print("\tArray count: {}\"\n", .{array_count});
-    // std.debug.print("\tLength count: {}\"\n", .{array_count});
+    // const remaining = if (slice.len < data.len - 2) blk: {
+    //     std.debug.print("good! data len: {}, slice len: {}\n", .{ data.len, slice.len });
+    //     break :blk data[slice.len + 2 .. data.len];
+    // } else blk: {
+    //     std.debug.print("Null! data len: {}, slice len: {}\n", .{ data.len, slice.len });
+    //     break :blk null;
+    // };
+    self.* = .{
+        .string = string,
+        .field_type = fieldType,
+        .remaining = null,
+        .len = len + 2,
+    };
 
-    self.remaining = td.data[array_count..];
+    // std.debug.print("Text Self: {any}\n", .{self});
 
     return self;
 }
@@ -152,6 +163,24 @@ pub fn deinit(self: *Text) void {
 
 pub fn asSlice(self: *Text) []u8 {
     return self.string.items;
+}
+
+pub fn format(self: Text, fmt: []const u8, options: anytype, writer: std.io.AnyWriter) !void {
+    _ = fmt;
+    _ = options;
+    try writer.print(
+        \\
+        \\Text
+        \\  .string = ''{s}'',
+        \\  .field_type = {?},
+        \\  .remaining = {s},
+        \\
+        \\
+    , .{
+        self.string.items,
+        self.field_type,
+        if (self.remaining) |_| "Yes" else "No",
+    });
 }
 
 test "Text" {
