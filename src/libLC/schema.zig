@@ -34,17 +34,29 @@ fn readFields(self: *Schema, header: Blocks.Header) !void {
     var fields = std.ArrayList(*Field.Base).init(alloc);
     errdefer fields.deinit();
 
-    var name = try Text.init(alloc, data);
+    var name = try Text.initFromBytes(alloc, data);
     errdefer name.deinit();
-    var f = try Field.Base.init(alloc, name, name.field_type.?);
+
+    var f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
+        std.debug.print("Invalid Field Name: {}\n", .{name});
+        return error.InvalidFieldName;
+    };
 
     try fields.append(f);
 
-    while (name.remaining) |raw| {
-        name = try Text.init(alloc, raw);
-        f = try Field.Base.init(alloc, name, name.field_type.?);
+    var bytes_read: usize = name.len;
+
+    while (bytes_read < data.len) {
+        std.debug.print("Read {} bytes\n", .{bytes_read});
+        name = try Text.initFromBytes(alloc, data[bytes_read..data.len]);
+        std.debug.print("Found Name: {}\n", .{name});
+        f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
+            std.debug.print("Invalid Field Name: {}\n", .{name});
+            return error.InvalidFieldName;
+        };
         try fields.append(f);
         if (fields.items.len >= header.availableDBFields) break;
+        bytes_read += name.len;
     }
     self.fields = fields;
     std.debug.print("Found {} Fields\n", .{fields.items.len});
@@ -58,7 +70,7 @@ fn readDataFromBlocks(
     header: Blocks.Header,
     blocks: Blocks.BlockList,
 ) !void {
-    const first_block = blocks[header.formDefinitionIndex].FormDescriptionView;
+    const first_block = blocks[header.formDefinitionIndex].FormDescriptionView.convert();
 
     // const num_schema_blocks = std.mem.readInt(u16, first_block.data[0..2], .little);
     // lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
@@ -75,10 +87,11 @@ fn readDataFromBlocks(
     var idx: usize = first_block.data.len;
 
     for (1..first_block.num_blocks) |i| {
-        const block = blocks[header.formDefinitionIndex + i].FormDescriptionContinuation;
-        @memcpy(data[idx .. idx + block.data.len], &block.data);
-        idx += block.data.len;
+        const continuation = blocks[header.formDefinitionIndex + i].FormDescriptionContinuation;
+        @memcpy(data[idx .. idx + continuation.data.len], &continuation.data);
+        idx += continuation.data.len;
     }
+    std.debug.print("{X}\n", .{data});
 
     // std.debug.print("{d} lines in the form screen\n", .{lines_in_form_screen});
     // std.debug.print("{d} length of lines\n", .{lines_length});

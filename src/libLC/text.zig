@@ -6,19 +6,7 @@ var alloc: std.mem.Allocator = undefined;
 
 string: std.ArrayList(u8),
 field_type: ?Field.TypeTag = null,
-
-remaining: ?[]u8 = null,
-
-const TextData = struct {
-    len: u16,
-    data: []u8,
-
-    pub fn fromBytes(data: []u8) TextData {
-        const len = std.mem.readInt(u16, data[0..2], .big);
-        std.debug.assert(len <= data.len - 2);
-        return TextData{ .len = len, .data = data[2 .. 2 + len] };
-    }
-};
+len: usize = 0,
 
 /// Initializes a Text directly
 pub fn init(allocator: std.mem.Allocator, txt: []const u8) !*Text {
@@ -31,6 +19,7 @@ pub fn init(allocator: std.mem.Allocator, txt: []const u8) !*Text {
     try str.appendSlice(txt);
     self.* = .{
         .string = str,
+        .len = txt.len,
     };
     return self;
 }
@@ -41,11 +30,9 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     const self = try allocator.create(Text);
     errdefer allocator.destroy(self);
 
-    const td = TextData.fromBytes(data);
-
-    // std.debug.print("{X}\n", .{data[0..8]});
-
-    // std.debug.print("Field:\n\tlen: {d}\n", .{len});
+    const len = std.mem.readInt(u16, data[0..2], .big);
+    std.debug.print("Reading ({}){X} + 2 bytes\n", .{ len, data[0..2] });
+    const slice = data[2 .. 2 + len];
 
     var length_count: usize = 0;
     var array_count: usize = 0;
@@ -55,9 +42,9 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     var fieldType: ?Field.TypeTag = null;
 
     //TODO: Add text formatting
-    while (length_count < td.len) {
+    while (length_count < len) {
         // std.debug.print("Before: Len: {d}, array: {d}\n", .{ length_count, array_count });
-        const char = td.data[length_count];
+        const char = slice[length_count];
         length_count += 1;
         array_count += 1;
 
@@ -77,13 +64,13 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
         // char >= 0x80
         else {
             const strippedChar = char & 0x7f;
-            const d = td.data[array_count];
+            const d = slice[array_count];
             array_count += 1;
             length_count += 1;
             switch (d) {
                 0xd0...0xdf => {
                     //  background text or field
-                    const e = td.data[array_count];
+                    const e = slice[array_count];
                     length_count += 1;
                     array_count += 1;
                     // std.debug.print("\tfound background: '{c}'\n", .{strippedChar});
@@ -111,7 +98,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
                 },
                 0xC0...0xCF => {
                     // regular text
-                    const e = td.data[array_count];
+                    const e = slice[array_count];
                     _ = e; // autofix
                     array_count += 1;
                     length_count += 1;
@@ -133,14 +120,11 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
         _ = string.pop();
     }
 
-    self.string = string;
-    self.field_type = fieldType;
-    // std.debug.print("\tString: \"{s}\"\n", .{string.items});
-    // std.debug.print("\tType: \"{s}\"\n", .{@tagName(fieldType)});
-    // std.debug.print("\tArray count: {}\"\n", .{array_count});
-    // std.debug.print("\tLength count: {}\"\n", .{array_count});
-
-    self.remaining = td.data[array_count..];
+    self.* = .{
+        .string = string,
+        .field_type = fieldType,
+        .len = len + 2, // for the length bytes
+    };
 
     return self;
 }

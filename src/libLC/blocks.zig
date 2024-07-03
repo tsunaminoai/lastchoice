@@ -54,6 +54,16 @@ const FDV = extern struct {
     lines_in_form_screen: u16,
     lines_length: u16,
     data: [120]u8,
+
+    pub fn convert(self: FDV) FDV {
+        return .{
+            .type = self.type,
+            .num_blocks = self.num_blocks,
+            .lines_in_form_screen = @byteSwap(self.lines_in_form_screen),
+            .lines_length = @byteSwap(self.lines_length),
+            .data = self.data,
+        };
+    }
 };
 
 test "union" {
