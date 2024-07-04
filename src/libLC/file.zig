@@ -2,12 +2,8 @@ const std = @import("std");
 const Blocks = @import("blocks.zig");
 const Schema = @import("schema.zig");
 const Records = @import("record.zig");
-
-const LCFile = @This();
-
-blocks: Blocks.BlockList,
-header: Blocks.Header,
-schema: *Schema = undefined,
+const FOL = @import("fol.zig");
+const LCFile = FOL;
 
 var raw: []u8 = undefined;
 var alloc: std.mem.Allocator = undefined;
@@ -25,29 +21,22 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
         std.math.maxInt(u32),
     );
     errdefer alloc.free(raw);
-    self.* = .{
-        .header = try Blocks.Header.fromBytes(raw[0..128]),
-        .blocks = try Blocks.fromBytes(raw[128..]),
-    };
-    self.schema = try Schema.init(alloc, self.header, self.blocks);
+    self.* = FOL.init(raw);
     errdefer self.deinit();
-
-    const r = try Records.init(allocator, self.schema, self.header, self.blocks);
-    _ = r; // autofix
 
     return self;
 }
 
 pub fn deinit(self: *LCFile) void {
-    self.schema.deinit();
+    // self.schema.deinit();
     alloc.free(raw);
     alloc.destroy(self);
 }
 
 test "LCFile" {
     const allocator = std.testing.allocator;
-    var file = try LCFile.init(allocator, "test/TESTDB.FOL");
-    defer file.deinit();
+    const file = try init(allocator, "test/TESTDB.FOL");
+    defer deinit(file);
 
     // try std.testing.expectEqual(raw.len, file.header.totalFileBlocks * 128 + 128);
     try std.testing.expectEqual(file.blocks.len, file.header.totalFileBlocks);
