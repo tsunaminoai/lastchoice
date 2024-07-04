@@ -46,7 +46,7 @@ pub fn deinit(self: *LCFile) void {
 
 test "LCFile" {
     const allocator = std.testing.allocator;
-    var file = try LCFile.init(allocator, "RESERVE.FOL");
+    var file = try LCFile.init(allocator, "test/TESTDB.FOL");
     defer file.deinit();
 
     // try std.testing.expectEqual(raw.len, file.header.totalFileBlocks * 128 + 128);

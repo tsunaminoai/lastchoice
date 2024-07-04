@@ -31,8 +31,8 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     errdefer allocator.destroy(self);
 
     const len = std.mem.readInt(u16, data[0..2], .big);
-    std.debug.print("Reading ({}){X} + 2 bytes\n", .{ len, data[0..2] });
-    const slice = data[2 .. 2 + len];
+    std.debug.print("Reading ({}){X} bytes\n", .{ len, data[0..2] });
+    const slice = data[2 .. len + 2];
 
     var length_count: usize = 0;
     var array_count: usize = 0;
@@ -123,7 +123,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     self.* = .{
         .string = string,
         .field_type = fieldType,
-        .len = len + 2, // for the length bytes
+        .len = len,
     };
 
     return self;
