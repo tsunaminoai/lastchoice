@@ -1,7 +1,7 @@
 const std = @import("std");
 const Blocks = @import("blocks.zig");
 const Schema = @import("schema.zig");
-const Record = @import("record.zig");
+const Records = @import("record.zig");
 
 const LCFile = @This();
 
@@ -32,7 +32,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
     self.schema = try Schema.init(alloc, self.header, self.blocks);
     errdefer self.deinit();
 
-    const r: Record = undefined;
+    const r = try Records.init(allocator, self.schema, self.header, self.blocks);
     _ = r; // autofix
 
     return self;

@@ -4,6 +4,7 @@ const Text = @import("text.zig");
 const Field = @import("field.zig");
 
 fields: std.ArrayList(*Field.Base),
+num_blocks: usize = 0,
 
 const Schema = @This();
 
@@ -80,6 +81,7 @@ fn readDataFromBlocks(
     // std.debug.print("{d} blocks in the form\n", .{num_schema_blocks});
     std.debug.print("{any}\n", .{header});
     std.debug.print("{any}\n", .{first_block});
+    self.num_blocks = first_block.num_blocks;
     data = try alloc.alloc(u8, first_block.num_blocks * Blocks.Block_Size);
     errdefer self.deinit();
 
