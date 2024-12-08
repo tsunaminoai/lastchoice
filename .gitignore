@@ -1,6 +1,7 @@
 dist
 zig-out
 zig-cache
+.zig-cache
 *.FOL
 *.csv
 *.log
