@@ -138,7 +138,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
 
 fn chomp(in: []const u8) ?[]const u8 {
     var i: usize = 0;
-    while (i + 2 < in.len and std.mem.indexOfAny(u8, in[i .. i + 2], &[_]u8{ 0xD, 0x20 }) != null) : (i += 1) {}
+    while (i + 2 < in.len and std.mem.indexOfAny(u8, in[i .. i + 2], &[_]u8{ 0xD, 0x20 }) != null and std.mem.indexOfScalar(u8, in[i .. i + 1], 0) == null) : (i += 2) {}
     if (std.mem.allEqual(u8, in[i..], 0)) return null;
     return in[i..];
 }

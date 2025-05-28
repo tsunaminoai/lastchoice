@@ -61,7 +61,7 @@ pub const Value = union(Kind) {
         return switch (tag) {
             .General => .{ .General = try Text.dupe(allocator, text) },
             .Numeric => .{ .Numeric = try std.fmt.parseFloat(f32, text) },
-            .Date => .{ .Date = try Value.parseDate(text) },
+            .Date => .{ .General = try Text.dupe(allocator, text) },
             .Time => .{ .Time = try Value.parseTime(text) },
             .Bool => .{ .Bool = if (text[0] == 'Y') true else false },
         };
@@ -70,7 +70,7 @@ pub const Value = union(Kind) {
     /// Parses a date in the format "MM/DD/YY"
     /// Returns a u32 in the format YYYYMMDD (ISO 8601 represent)
     pub fn parseDate(text: []const u8) !u32 {
-        if (text.len != 8) return error.InvalidDate;
+        // if (text.len != 8 and text.len != 5) return error.InvalidDate;
         const month = try std.fmt.parseInt(u32, text[0..2], 10);
         const day = try std.fmt.parseInt(u32, text[3..5], 10);
         var year = try std.fmt.parseInt(u32, text[6..], 10);
