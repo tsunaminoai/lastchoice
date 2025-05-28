@@ -68,55 +68,34 @@ pub fn main() anyerror!void {
     var outfile: ?[]u8 = null;
     const stdout = std.io.getStdOut().writer();
 
-    const PrintMatrix = packed struct {
+    const Options = packed struct(u4) {
         header: bool = false,
         form: bool = false,
         records: bool = false,
         csv: bool = false,
+        const Opt = @This();
 
-        const Int = blk: {
-            const bits = @typeInfo(@This()).Struct.fields.len;
-            break :blk @Type(.{
-                .Int = .{
-                    .signedness = .unsigned,
-                    .bits = bits,
-                },
-            });
-        };
-
-        fn enableAll() @This() {
-            return @as(@This(), @bitCast(~@as(
-                Int,
-                0,
-            )));
+        pub fn enableAll() Opt {
+            return .{
+                .header = true,
+                .form = true,
+                .records = true,
+                .csv = true,
+            };
         }
-
-        fn isSet(pm: @This()) bool {
-            return @as(Int, @bitCast(pm)) == 0;
-        }
-
-        fn add(pm: *@This(), other: @This()) void {
-            pm.* = @as(
-                @This(),
-                @bitCast(@as(
-                    Int,
-                    @bitCast(pm.*),
-                ) | @as(
-                    Int,
-                    @bitCast(other),
-                )),
-            );
+        pub fn add(self: Opt, other: Opt) Opt {
+            return @bitCast(@as(u4, @bitCast(self)) | @as(u4, @bitCast(other)));
         }
     };
-    var print_matrix: PrintMatrix = .{};
+    var options = Options{};
 
     var it = ArgsIterator{ .args = args };
     while (it.next()) |arg| {
         if (std.mem.startsWith(u8, arg, "-")) blk: {
             var i: usize = 1;
-            var tmp = PrintMatrix{};
+            var tmp = Options{};
             while (i < arg.len) : (i += 1) switch (arg[i]) {
-                'a' => tmp = PrintMatrix.enableAll(),
+                'a' => tmp = Options.enableAll(),
                 'h' => {
                     try stdout.print(help ++ "\n", .{});
                     std.process.exit(0);
@@ -133,7 +112,7 @@ pub fn main() anyerror!void {
                 },
                 else => break :blk,
             };
-            print_matrix.add(tmp);
+            options = options.add(tmp);
             continue;
         } else filename = arg;
     }
@@ -159,13 +138,13 @@ pub fn main() anyerror!void {
         else => |e| return e,
     };
 
-    if (print_matrix.header)
+    if (options.header)
         try f.printHeader(stdout);
-    if (print_matrix.form)
+    if (options.form)
         try f.printForm(stdout);
-    if (print_matrix.records)
+    if (options.records)
         try f.printRecords(stdout);
-    if (print_matrix.csv) {
+    if (options.csv) {
         var writer = stdout;
         var csvFile: ?std.fs.File = null;
         if (outfile) |o| {

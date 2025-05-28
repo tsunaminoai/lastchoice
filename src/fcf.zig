@@ -249,7 +249,7 @@ pub fn parseRecords(self: *FCF) !void {
                 .fields = std.ArrayList(Field.Definition).init(alloc),
             };
 
-            var tok = std.mem.tokenize(u8, recordBytes, "\x0D\x0D");
+            var tok = std.mem.tokenizeSequence(u8, recordBytes, "\x0D\x0D");
             while (tok.next()) |recordField| {
                 if (recordField.len < 2) break;
                 var lex = Text.Lexer.init(recordField[2..], false);

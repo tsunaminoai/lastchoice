@@ -1,9 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.10.7/.schema/devbox.schema.json",
   "packages": [
-    "zig@0.12.0",
     "zls@latest",
-    "watchexec@latest"
+    "watchexec@latest",
+    "zig@latest"
   ],
   "shell": {
     "init_hook": [
