@@ -13,6 +13,7 @@ allocator: std.mem.Allocator,
 lines_on_screen: u16 = 0,
 lines_length: u16 = 0,
 fields: Array(Field),
+num_fields: usize = 0,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -22,6 +23,7 @@ pub fn init(
     const self = try allocator.create(Schema);
     self.allocator = allocator;
     self.fields = Array(Field).init(allocator);
+    self.num_fields = header.availableDBFields;
     errdefer allocator.destroy(self);
     {
         try self.readDataFromBlocks(header, blocks);
@@ -38,43 +40,6 @@ pub fn deinit(self: *Schema) void {
     }
     self.fields.deinit();
 }
-
-// fn readFields(self: *Schema, header: Blocks.Header) !void {
-//     var fields = std.ArrayList(*Field.Base).init(self.allocator);
-//     errdefer fields.deinit();
-
-//     var name = try Text.initFromBytes(self.allocator, data);
-//     errdefer name.deinit();
-
-//     var f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
-//         std.debug.print("Field tag not found for field name text: {}\n", .{name});
-//         return error.FieldTypeNotFound;
-//     };
-//     errdefer f.deinit();
-//     // std.debug.print("Found field: {}\n", .{name});
-
-//     try fields.append(f);
-//     var bytes_read: usize = name.len;
-
-//     while (bytes_read < data.len) {
-//         name = try Text.initFromBytes(alloc, data[bytes_read..data.len]);
-//         std.debug.print("We've read {} bytes\n", .{bytes_read});
-//         f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
-//             std.debug.print("Field tag not found for field name text: {}\n", .{name});
-//             return error.FieldTypeNotFound;
-//         };
-//         errdefer f.deinit();
-//         // std.debug.print("Found field: {}\n", .{name});
-//         try fields.append(f);
-//         if (fields.items.len >= header.availableDBFields) break;
-//         bytes_read += name.len;
-//     }
-//     self.fields = fields;
-//     std.debug.print("Found {} Fields\n", .{fields.items.len});
-//     for (fields.items) |field| {
-//         std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.type) });
-//     }
-// }
 
 fn readDataFromBlocks(
     self: *Schema,
@@ -97,7 +62,6 @@ fn readDataFromBlocks(
 
     field_data[0..form_data.data.len].* = form_data.data;
 
-    // @memcpy(data[0..first_block.data.len], &first_block.data);
     var idx: usize = form_data.data.len;
 
     for (1..form_data.num_blocks) |i| {
@@ -108,7 +72,31 @@ fn readDataFromBlocks(
         }
         @memcpy(field_data[idx .. idx + nextblock.data.common.data.len], &nextblock.data.common.data);
         idx += nextblock.data.common.data.len;
-        // idx += nextblock.data.len;
     }
-    std.debug.print("{X}\n", .{field_data});
+
+    std.debug.print("{}", .{header});
+    try self.readFields(field_data[0..idx]);
+}
+
+fn readFields(self: *Schema, data: []const u8) !void {
+    // std.debug.print("(len:{}) {X}\n", .{ data.len, data });
+    //     var fields = std.ArrayList(*Field.Base).init(self.allocator);
+    //     errdefer fields.deinit();
+    var bytes: ?[]const u8 = data;
+    while (bytes) |d| {
+        var name = try Text.initFromBytes(self.allocator, d);
+        errdefer name.deinit();
+
+        var field = try Field.init(self.allocator, name);
+        errdefer field.deinit();
+
+        try self.fields.append(field);
+        // std.debug.print("Found field: {} {} of {}\n", .{ field, self.fields.items.len, self.num_fields });
+        bytes = name.extra;
+    }
+
+    std.debug.print("Found {} Fields\n", .{self.fields.items.len});
+    for (self.fields.items) |field| {
+        std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.value) });
+    }
 }

@@ -1,20 +1,28 @@
 const std = @import("std");
+const Array = std.ArrayList;
+const Allocator = std.mem.Allocator;
+const tst = std.testing;
+const math = std.math;
 const Field = @import("field.zig");
 const Text = @This();
 
-var alloc: std.mem.Allocator = undefined;
-
 string: std.ArrayList(u8),
-field_type: ?Field.TypeTag = null,
+field_type: ?Field.Kind = null,
 len: usize = 0,
+extra: ?[]const u8 = null,
 
-/// Initializes a Text directly
-pub fn init(allocator: std.mem.Allocator, txt: []const u8) !*Text {
-    alloc = allocator;
+pub fn init(allocator: Allocator) Text {
+    return .{
+        .string = Array(u8).init(allocator),
+    };
+}
+
+/// Creates a new Text from a slice of bytes.
+pub fn dupe(allocator: std.mem.Allocator, txt: []const u8) !*Text {
     const self = try allocator.create(Text);
     errdefer allocator.destroy(self);
 
-    var str = std.ArrayList(u8).init(alloc);
+    var str = std.ArrayList(u8).init(allocator);
     errdefer str.deinit();
     try str.appendSlice(txt);
     self.* = .{
@@ -25,25 +33,30 @@ pub fn init(allocator: std.mem.Allocator, txt: []const u8) !*Text {
 }
 
 /// Initializes a Text from a byte array.
-pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
-    alloc = allocator;
-    const self = try allocator.create(Text);
-    errdefer allocator.destroy(self);
-
+pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
+    var self = Text.init(allocator);
     const len = std.mem.readInt(u16, data[0..2], .big);
-    std.debug.print("Reading ({}){X} bytes\n", .{ len, data[0..2] });
-    const slice = data[2 .. len + 2];
+    // std.debug.print("Consuming: {X}\n", .{data});
+    if (len > data.len - 2) {
+        std.log.err("Text length {} exceeds data length {}\nData: {X}", .{ len, data.len, data });
+        return error.InvalidLength;
+    }
+    const slice = data[2..];
 
     var length_count: usize = 0;
     var array_count: usize = 0;
 
-    var string = std.ArrayList(u8).init(alloc);
+    var string = std.ArrayList(u8).init(allocator);
     errdefer string.deinit();
-    var fieldType: ?Field.TypeTag = null;
+    var fieldType: ?Field.Kind = null;
 
     //TODO: Add text formatting
-    while (length_count < slice.len) {
-        // std.debug.print("Before: Len: {d}, array: {d}\n", .{ length_count, array_count });
+    while (length_count < len) {
+        // std.debug.print("Before: Len: {d}, array: {d}, slice: {}\n", .{
+        //     length_count,
+        //     array_count,
+        //     slice.len,
+        // });
         const char = slice[length_count];
         length_count += 1;
         array_count += 1;
@@ -88,7 +101,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
                 0x90...0x9f => {
                     // Field Name / Type
 
-                    if (Field.TypeTag.fromInt(strippedChar)) |cap| {
+                    if (Field.Kind.fromInt(strippedChar)) |cap| {
                         // std.debug.print("\tfound type: {s}\n", .{@tagName(cap)});
                         fieldType = cap;
                     } else {
@@ -116,25 +129,32 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []u8) !*Text {
     }
 
     // trim string
-    while (string.getLast() == ' ') {
+    while (string.items.len > 0 and string.getLast() == ' ') {
         _ = string.pop();
     }
 
-    self.* = .{
+    self = .{
         .string = string,
         .field_type = fieldType,
         .len = len,
+        .extra = chomp(slice[len - 2 ..]),
     };
 
     return self;
 }
 
-pub fn deinit(self: *Text) void {
-    self.string.deinit();
-    alloc.destroy(self);
+fn chomp(in: []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (i + 2 < in.len and std.mem.indexOfAny(u8, in[i .. i + 2], &[_]u8{ 0xD, 0x20 }) != null) : (i += 1) {}
+    if (std.mem.allEqual(u8, in[i..], 0)) return null;
+    return in[i..];
 }
 
-pub fn asSlice(self: *Text) []u8 {
+pub fn deinit(self: Text) void {
+    self.string.deinit();
+}
+
+pub fn asSlice(self: Text) []u8 {
     return self.string.items;
 }
 

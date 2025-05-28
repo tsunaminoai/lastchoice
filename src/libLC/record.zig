@@ -4,7 +4,7 @@ const Schema = @import("schema.zig");
 const Text = @import("text.zig");
 const Blocks = @import("blocks.zig");
 
-const Value = Field.Type;
+const Value = Field.Value;
 
 fields: *std.ArrayList(*Field),
 values: []Value,
@@ -57,9 +57,9 @@ pub fn deinit(self: *Records) void {
 }
 
 pub fn Values(
-    comptime Tag: Field.TypeTag,
+    comptime Tag: Field.Kind,
 ) type {
-    const ValueType = Field.Type.tagToType(Tag);
+    const ValueType = Field.Value.tagToType(Tag);
     return struct {
         rawValue: []u8,
         value: @TypeOf(ValueType),
@@ -73,7 +73,7 @@ pub fn Values(
                 .value = switch (Tag) {
                     .General => .{ .General = raw.items },
                     .Numeric => .{ .Numeric = try std.fmt.parseFloat(f32, raw) },
-                    Field.Type.Date => .{ .Date = blk: {
+                    Field.Value.Date => .{ .Date = blk: {
                         var iso8601: u32 = 19000000;
                         iso8601 += 10000 * try std.fmt.parseInt(u32, raw[6..8], 10);
                         iso8601 += 100 * try std.fmt.parseInt(u32, raw[3..5], 10);
