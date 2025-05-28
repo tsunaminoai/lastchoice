@@ -3,14 +3,8 @@ const Schema = @import("schema.zig");
 
 pub const Block_Size = 128;
 
-// const Block = @This();
-
 pub const BlockList = []align(1) Block;
-
-type: Type,
-data: [126]u8,
-
-pub const Type = enum(u16) {
+pub const Kind = enum(u16) {
     Empty = 0x0000,
     DataContinuation = 0x0001,
     FormDescriptionContinuation = 0x0002,
@@ -20,75 +14,55 @@ pub const Type = enum(u16) {
     FormDescriptionView = 0x0082,
     TableView = 0x0083,
     Formula = 0x0084,
-
-    pub fn fromInt(int: u16) !Type {
-        switch (int) {
-            0x0...0x4, 0x81...0x84 => {
-                return @as(Type, @enumFromInt(int));
-            },
-            else => {
-                return error.InvalidBlockType;
-            },
-        }
-    }
-
-    pub fn fromSlice(int: []const u8) !Type {
-        return Type.fromInt(std.mem.readInt(u16, int, .big));
-    }
+    _,
 };
+pub const Block = extern struct {
+    type: Kind,
+    data: extern union {
+        Schema: Form,
+        DataRecord: DataRecord,
+        common: Common,
+    },
 
-const BaseBlock = extern struct {
-    type: Type,
-    data: [126]u8,
-};
-pub const Block = extern union {
-    Empty: BaseBlock,
-    DataContinuation: BaseBlock,
-    FormDescriptionContinuation: BaseBlock,
-    TableViewContinuation: BaseBlock,
-    FormulaContinuation: BaseBlock,
-    DataRecord: BaseBlock,
-    FormDescriptionView: FDV,
-    TableView: BaseBlock,
-    Formula: BaseBlock,
-};
-
-const FDV = extern struct {
-    type: Type,
-    num_blocks: u16,
-    lines_in_form_screen: u16,
-    lines_length: u16,
-    data: [120]u8,
-
-    pub fn convert(self: FDV) FDV {
-        return .{
-            .type = self.type,
-            .num_blocks = self.num_blocks,
-            .lines_in_form_screen = @byteSwap(self.lines_in_form_screen),
-            .lines_length = @byteSwap(self.lines_length),
-            .data = self.data,
-        };
-    }
-};
-
-test "union" {
-    try std.testing.expectEqual(@sizeOf(FDV), 128);
-    try std.testing.expectEqual(@sizeOf(Block), 128);
-    const bytes: [128]u8 = [_]u8{
-        0x00, 0x82, 0x00, 0x04, 0xd0, 0x01, 0x0e, 0x00, 0x32, 0x00, 0x90, 0xc6, 0x90, 0xe9, 0x90, 0xf2,
-        0x90, 0xf3, 0x90, 0xf4, 0x90, 0x80, 0x90, 0xee, 0x90, 0xe1, 0x90, 0xed, 0x90, 0xe5, 0x90, 0x81,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x18, 0x00, 0x90, 0xcc,
-        0x90, 0xe1, 0x90, 0xf3, 0x90, 0xf4, 0x90, 0x80, 0x90, 0xee, 0x90, 0xe1, 0x90, 0xed, 0x90, 0xe5,
-        0x90, 0x81, 0x0d, 0x0d, 0x14, 0x00, 0x90, 0xc1, 0x90, 0xe4, 0x90, 0xe4, 0x90, 0xf2, 0x90, 0xe5,
-        0x90, 0xf3, 0x90, 0xf3, 0x90, 0x81, 0x0d, 0x0d, 0x2c, 0x00, 0x90, 0xc3, 0x90, 0xe9, 0x90, 0xf4,
-        0x90, 0xf9, 0x90, 0x81, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    const Common = extern struct {
+        data: [126]u8,
     };
-    try std.testing.expectEqual(bytes[1], 0x82);
-    const block = Block{ .FormDescriptionView = @bitCast(bytes) };
-    // std.debug.print("{X}\n", .{block.FormDescriptionView.type});
-    std.debug.print("{any}\n", .{block});
-}
+    const DataRecord = extern struct {
+        num_blocks: u8,
+        _: u8,
+        data: [124]u8,
+    };
+    const Form = extern struct {
+        num_blocks: u16,
+        len_lines_on_screen: u16,
+        len_lines: u16,
+        data: [120]u8,
+        pub fn format(self: Form, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+            _ = fmt; // autofix
+            _ = options; // autofix
+            try writer.print("Schema Blocks: {}\n", .{self.num_blocks});
+            try writer.print("Lines on Screen: {}\n", .{self.len_lines_on_screen});
+            try writer.print("Lines: {}\n", .{self.len_lines});
+        }
+
+        pub fn fromBytes(bytes: []const u8) Form {
+            return .{
+                .num_blocks = std.mem.readInt(u16, bytes[0..2], .little),
+                .len_lines_on_screen = std.mem.readInt(u16, bytes[2..4], .little),
+                .len_lines = std.mem.readInt(u16, bytes[4..6], .little),
+                .data = bytes[6..126],
+            };
+        }
+        pub fn swapEndien(self: Form) Form {
+            return .{
+                .num_blocks = self.num_blocks,
+                .len_lines_on_screen = @byteSwap(self.len_lines_on_screen),
+                .len_lines = @byteSwap(self.len_lines),
+                .data = self.data,
+            };
+        }
+    };
+};
 
 pub fn fromBytes(data: []u8) !BlockList {
     if (data.len % Block_Size != 0) {
@@ -142,8 +116,7 @@ pub const Header = extern struct {
         var head = std.mem.bytesToValue(Header, raw);
         if (!head.isValid())
             return error.InvalidMagicString;
-        head.formDefinitionIndex -= 1; // removing the header block
-        // head.formDefinitionIndex -= 1; // Accouting for 1 indexing
+        head.formDefinitionIndex -= 1; // removing the header block from count
         return head;
     }
 

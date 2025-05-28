@@ -1,8 +1,8 @@
 const std = @import("std");
 const LC = @import("lc");
 
-var global_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-const gpa = global_allocator.allocator();
+var global_allocator = std.heap.DebugAllocator(.{}){};
+var gpa = global_allocator.allocator();
 
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
     ret: {
@@ -129,10 +129,17 @@ pub fn main() anyerror!void {
     // );
 
     var f = try LC.File.init(alloc, fname);
-
-    std.debug.print("{any}\n", .{f.fol.header});
-
     defer f.deinit();
+
+    // std.debug.print("{any}\n", .{f.fol.header});
+    // for (f.fol.blocks) |b| {
+    //     std.debug.print("{}\n", .{b});
+    //     if (b.type == .FormDescriptionView) {
+    //         std.debug.print("{}\n", .{b.data.Schema});
+    //     }
+    // }
+    // std.debug.print("{any}\n", .{f.fol.blocks[f.fol.header.schemaPosition()].data.Schema});
+
     // var f = FCF{ .arena = arena_allocator, .data = data };
 
     // f.parse() catch |err| switch (err) {

@@ -1,113 +1,114 @@
 const std = @import("std");
+const Array = std.ArrayList;
+const Allocator = std.mem.Allocator;
+const tst = std.testing;
+const math = std.math;
 const Blocks = @import("blocks.zig");
 const Text = @import("text.zig");
 const Field = @import("field.zig");
 
-fields: std.ArrayList(*Field.Base),
-num_blocks: usize = 0,
-
 const Schema = @This();
 
-var alloc: std.mem.Allocator = undefined;
-var data: []u8 = undefined;
-
-var lines_in_form_screen: u16 = 0;
-var lines_length: u16 = 0;
+allocator: std.mem.Allocator,
+lines_on_screen: u16 = 0,
+lines_length: u16 = 0,
+fields: Array(Field),
 
 pub fn init(
     allocator: std.mem.Allocator,
     header: Blocks.Header,
     blocks: Blocks.BlockList,
 ) !*Schema {
-    alloc = allocator;
-    const self = try alloc.create(Schema);
+    const self = try allocator.create(Schema);
+    self.allocator = allocator;
+    self.fields = Array(Field).init(allocator);
+    errdefer allocator.destroy(self);
     {
         try self.readDataFromBlocks(header, blocks);
 
-        try self.readFields(header);
+        // try self.readFields(header);
     }
     errdefer self.deinit();
 
     return self;
 }
-
-fn readFields(self: *Schema, header: Blocks.Header) !void {
-    var fields = std.ArrayList(*Field.Base).init(alloc);
-    errdefer fields.deinit();
-
-    var name = try Text.initFromBytes(alloc, data);
-    errdefer name.deinit();
-
-    var f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
-        std.debug.print("Field tag not found for field name text: {}\n", .{name});
-        return error.FieldTypeNotFound;
-    };
-    errdefer f.deinit();
-    // std.debug.print("Found field: {}\n", .{name});
-
-    try fields.append(f);
-    var bytes_read: usize = name.len;
-
-    while (bytes_read < data.len) {
-        name = try Text.initFromBytes(alloc, data[bytes_read..data.len]);
-        std.debug.print("We've read {} bytes\n", .{bytes_read});
-        f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
-            std.debug.print("Field tag not found for field name text: {}\n", .{name});
-            return error.FieldTypeNotFound;
-        };
-        errdefer f.deinit();
-        // std.debug.print("Found field: {}\n", .{name});
-        try fields.append(f);
-        if (fields.items.len >= header.availableDBFields) break;
-        bytes_read += name.len;
+pub fn deinit(self: *Schema) void {
+    for (self.fields.items) |field| {
+        field.deinit();
     }
-    self.fields = fields;
-    std.debug.print("Found {} Fields\n", .{fields.items.len});
-    for (fields.items) |field| {
-        std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.type) });
-    }
+    self.fields.deinit();
 }
+
+// fn readFields(self: *Schema, header: Blocks.Header) !void {
+//     var fields = std.ArrayList(*Field.Base).init(self.allocator);
+//     errdefer fields.deinit();
+
+//     var name = try Text.initFromBytes(self.allocator, data);
+//     errdefer name.deinit();
+
+//     var f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
+//         std.debug.print("Field tag not found for field name text: {}\n", .{name});
+//         return error.FieldTypeNotFound;
+//     };
+//     errdefer f.deinit();
+//     // std.debug.print("Found field: {}\n", .{name});
+
+//     try fields.append(f);
+//     var bytes_read: usize = name.len;
+
+//     while (bytes_read < data.len) {
+//         name = try Text.initFromBytes(alloc, data[bytes_read..data.len]);
+//         std.debug.print("We've read {} bytes\n", .{bytes_read});
+//         f = if (name.field_type) |t| try Field.Base.init(alloc, name, t) else {
+//             std.debug.print("Field tag not found for field name text: {}\n", .{name});
+//             return error.FieldTypeNotFound;
+//         };
+//         errdefer f.deinit();
+//         // std.debug.print("Found field: {}\n", .{name});
+//         try fields.append(f);
+//         if (fields.items.len >= header.availableDBFields) break;
+//         bytes_read += name.len;
+//     }
+//     self.fields = fields;
+//     std.debug.print("Found {} Fields\n", .{fields.items.len});
+//     for (fields.items) |field| {
+//         std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.type) });
+//     }
+// }
 
 fn readDataFromBlocks(
     self: *Schema,
     header: Blocks.Header,
     blocks: Blocks.BlockList,
 ) !void {
-    const first_block = blocks[header.formDefinitionIndex].FormDescriptionView.convert();
-
-    // const num_schema_blocks = std.mem.readInt(u16, first_block.data[0..2], .little);
-    // lines_in_form_screen = std.mem.readInt(u16, first_block.data[2..4], .big);
-    // lines_length = std.mem.readInt(u16, first_block.data[4..6], .big);
-    // std.debug.print("{d} blocks in the form\n", .{num_schema_blocks});
-    std.debug.print("{any}\n", .{header});
-    std.debug.print("{any}\n", .{first_block});
-    self.num_blocks = first_block.num_blocks;
-    data = try alloc.alloc(u8, first_block.num_blocks * Blocks.Block_Size);
-    errdefer self.deinit();
-
-    @memset(data, 0);
-
-    @memcpy(data[0..first_block.data.len], &first_block.data);
-    var idx: usize = first_block.data.len;
-
-    for (1..first_block.num_blocks) |i| {
-        const continuation = blocks[header.formDefinitionIndex + i].FormDescriptionContinuation;
-        @memcpy(data[idx .. idx + continuation.data.len], &continuation.data);
-        idx += continuation.data.len;
+    const first_block = blocks[header.formDefinitionIndex];
+    if (first_block.type != .FormDescriptionView) {
+        std.log.err("Incorrect block found at specified index {}", .{header.formDefinitionIndex});
+        return error.InvalidBlockType;
     }
-    std.debug.print("{X}\n", .{data});
+    const form_data = first_block.data.Schema.swapEndien();
+    self.lines_length = form_data.len_lines;
+    self.lines_on_screen = form_data.len_lines_on_screen;
+    std.debug.print("{}\n", .{form_data});
 
-    // std.debug.print("{d} lines in the form screen\n", .{lines_in_form_screen});
-    // std.debug.print("{d} length of lines\n", .{lines_length});
-    // std.debug.print("{}", .{header});
-    // std.debug.print("Length of form data: {}, {}\n", .{ data.len, header.availableDBFields + header.formLength });
-}
+    var field_data = try self.allocator.alloc(u8, form_data.num_blocks * 128);
+    defer self.allocator.free(field_data);
+    @memset(field_data, 0);
 
-pub fn deinit(self: *Schema) void {
-    for (self.fields.items) |field| {
-        field.deinit();
+    field_data[0..form_data.data.len].* = form_data.data;
+
+    // @memcpy(data[0..first_block.data.len], &first_block.data);
+    var idx: usize = form_data.data.len;
+
+    for (1..form_data.num_blocks) |i| {
+        const nextblock = blocks[header.formDefinitionIndex + i];
+        if (nextblock.type != .FormDescriptionContinuation) {
+            std.log.err("Incorrect block type found at index {}", .{header.formDefinitionIndex + i});
+            return error.InvalidBlockType;
+        }
+        @memcpy(field_data[idx .. idx + nextblock.data.common.data.len], &nextblock.data.common.data);
+        idx += nextblock.data.common.data.len;
+        // idx += nextblock.data.len;
     }
-    self.fields.deinit();
-    alloc.free(data);
-    alloc.destroy(self);
+    std.debug.print("{X}\n", .{field_data});
 }

@@ -24,7 +24,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !LCFile {
     const r = try file.readToEndAlloc(allocator, std.math.maxInt(u32));
     errdefer allocator.free(r);
 
-    fol.* = FOL.init(r);
+    fol.* = try FOL.init(allocator, r);
 
     return .{
         .fol = fol,
