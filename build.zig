@@ -20,6 +20,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.root_module.addImport("lc", libLC.root_module);
+    exe.linkLibrary(libLC);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

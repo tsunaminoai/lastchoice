@@ -7,7 +7,7 @@ blocks: []Block,
 
 pub fn init(buffer: []u8) FOL {
     return .{
-        .header = std.mem.bytesToValue(Header, buffer[0..128]),
+        .header = Header.fromBytes(buffer[0..128]),
         .blocks = @alignCast(std.mem.bytesAsSlice(Block, buffer[128..])),
     };
 }
@@ -17,18 +17,36 @@ const Header = extern struct {
     lastUsedBlock: u16, // the last block used in the file. It is known not to be accurate in FirstChoice files
     totalFileBlocks: u16, // number of blocks in the file, minus the header
     dataRecords: u16, // the number of data records held in the file
-    magicString: [14]u8, // the magic string
+    magicString: *const [14]u8, // the magic string
     availableDBFields: u16, // the number of fields in the schema
     formLength: u16, // number of blocks the schema takes up
     formRevisions: u16, // number of schema revisions. 1 indexed
-    _1: u16, // padding
+    _1: u16 = 0, // padding
     emptiesLength: u16, // number of empties blocks
     tableViewIndex: u16, // index of the table view, if any
     programRecordIndex: u16, // index of the program record, if any
-    _2: u16, // padding
-    _3: u16, // padding
+    _2: u16 = 0, // padding
+    _3: u16 = 0, // padding
     nextFieldSize: u8, // size of the next field
-    diskVar: [128 - 41]u8, // @DISKVAR value for formulas
+    diskVar: *const [128 - 41]u8, // @DISKVAR value for formulas
+
+    pub fn fromBytes(bytes: []const u8) Header {
+        return .{
+            .formDefinitionIndex = std.mem.readInt(u16, bytes[0..2], .little),
+            .lastUsedBlock = std.mem.readInt(u16, bytes[2..4], .little),
+            .totalFileBlocks = std.mem.readInt(u16, bytes[4..6], .little),
+            .dataRecords = std.mem.readInt(u16, bytes[6..8], .little),
+            .magicString = bytes[8..22],
+            .availableDBFields = std.mem.readInt(u16, bytes[22..24], .little),
+            .formLength = std.mem.readInt(u16, bytes[24..26], .little),
+            .formRevisions = std.mem.readInt(u16, bytes[26..28], .little),
+            .emptiesLength = std.mem.readInt(u16, bytes[30..32], .little),
+            .tableViewIndex = std.mem.readInt(u16, bytes[32..34], .little),
+            .programRecordIndex = std.mem.readInt(u16, bytes[34..36], .little),
+            .nextFieldSize = bytes[40],
+            .diskVar = bytes[41..128],
+        };
+    }
 
     pub fn schemaPosition(self: Header) u16 {
         return self.formDefinitionIndex - 1;
