@@ -18,7 +18,7 @@ pub fn init(allocator: std.mem.Allocator, name: Text) !Field {
     return .{ .name = name, .value = switch (name.field_type.?) {
         .General => .{ .General = Text.init(allocator) },
         .Numeric => .{ .Numeric = 0.0 },
-        .Date => .{ .Date = 0 },
+        .Date => .{ .Date = Text.init(allocator) },
         .Time => .{ .Time = 0.0 },
         .Bool => .{ .Bool = false },
     } };
@@ -43,15 +43,25 @@ pub const Kind = enum(u8) {
 pub const Value = union(Kind) {
     General: ?Text,
     Numeric: f32,
-    Date: u32,
+    Date: Text,
     Time: f32,
     Bool: bool,
 
+    pub fn format(self: Value, comptime _: []const u8, _: anytype, writer: anytype) !void {
+        return switch (self) {
+            .General => |g| if (g) |txt| try writer.print("{s}", .{txt.asSlice()}),
+            .Numeric => |n| try writer.print("{d:0.2}", .{n}),
+            .Date => |d| try writer.print("{s}", .{d}),
+            .Time => |t| try writer.print("{d}", .{t}),
+            .Bool => |b| if (b) try writer.writeAll("Y") else try writer.writeAll("N"),
+        };
+    }
+
     pub inline fn typeFromTag(tag: Kind) type {
         return switch (tag) {
-            .General => ?*Text,
+            .General => ?Text,
             .Numeric => f32,
-            .Date => u32,
+            .Date => Text,
             .Time => f32,
             .Bool => bool,
         };

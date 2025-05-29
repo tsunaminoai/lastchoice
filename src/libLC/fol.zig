@@ -74,7 +74,7 @@ fn loadRecordFromBlocks(self: *FOL, blocks: []align(1) Block) !void {
         idx += dr.data.len;
     }
 
-    std.debug.print("{X:0.2}", .{record_data});
+    // std.debug.print("{X:0.2}", .{record_data});
     const record = try self.readRecordFields(record_data);
     try self.records.append(record);
 }
@@ -86,9 +86,9 @@ fn readRecordFields(self: *FOL, data: []const u8) !Record {
     var bytes: ?[]const u8 = data;
     for (self.schema.fields.items) |field| {
         if (bytes) |b| {
-            std.debug.print("from rrf(): {X}\n", .{b});
+            // std.debug.print("from rrf(): {X}\n", .{b});
             const value_text = try Text.initFromBytes(self.allocator, b);
-            std.debug.print("Value text: {}\n", .{value_text});
+            // std.debug.print("Value text: {}\n", .{value_text});
             const value = try Field.Value.fromSlice(field.value, self.allocator, value_text.string.items);
 
             try record.append(value);
@@ -100,6 +100,19 @@ fn readRecordFields(self: *FOL, data: []const u8) !Record {
     //     std.debug.print("'{s}'\t{s}\n", .{ field.name.string.items, @tagName(field.value) });
     // }
     return record;
+}
+
+pub fn print_records(self: FOL, writer: anytype) !void {
+    for (self.schema.fields.items) |field| {
+        try writer.print("{s}\t", .{field.name.asSlice()});
+    }
+    try writer.writeAll("\n");
+    for (self.records.items) |record| {
+        for (record.items) |value| {
+            try writer.print("{}|\t", .{value});
+        }
+        try writer.writeAll("\n");
+    }
 }
 
 test {

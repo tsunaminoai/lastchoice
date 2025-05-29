@@ -131,6 +131,8 @@ pub fn main() anyerror!void {
     var f = try LC.File.init(alloc, fname);
     defer f.deinit();
 
+    try f.fol.print_records(stdout);
+
     // std.debug.print("{any}\n", .{f.fol.header});
     // for (f.fol.blocks) |b| {
     //     std.debug.print("{}\n", .{b});
