@@ -125,6 +125,9 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
     while (string.items.len > 0 and string.getLast() == ' ') {
         _ = string.pop();
     }
+    while (string.items.len > 0 and string.items[0] == ' ') {
+        _ = string.orderedRemove(0);
+    }
 
     self = .{
         .string = string,
