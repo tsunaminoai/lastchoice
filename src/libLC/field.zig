@@ -100,13 +100,13 @@ pub const Value = union(Kind) {
 };
 
 pub const Base = struct {
-    name: *Text,
+    name: Text,
     values: std.ArrayList(Value),
     type: Kind,
 
     var alloc: std.mem.Allocator = undefined;
 
-    pub fn init(allocator: std.mem.Allocator, name: *Text, tag: Kind) !*Base {
+    pub fn init(allocator: std.mem.Allocator, name: Text, tag: Kind) !*Base {
         alloc = allocator;
         const self = try allocator.create(Base);
         errdefer allocator.destroy(self);
@@ -122,7 +122,7 @@ pub const Base = struct {
         const self = try allocator.create(Base);
         errdefer allocator.destroy(self);
         self.* = .{
-            .name = try Text.init(alloc, name),
+            .name = try Text.dupe(alloc, name),
             .type = tag,
             .values = std.ArrayList(Value).init(alloc),
         };

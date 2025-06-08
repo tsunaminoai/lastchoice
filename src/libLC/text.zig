@@ -7,13 +7,26 @@ const Field = @import("field.zig");
 const Text = @This();
 
 string: std.ArrayList(u8),
+characters: Array(Character),
 field_type: ?Field.Kind = null,
 len: usize = 0,
 extra: ?[]const u8 = null,
 
+pub const Character = struct {
+    value: u8,
+    options: Options = .{},
+    pub const Options = struct {
+        bold: bool = false,
+        underline: bool = false,
+        background: bool = false,
+        field: bool = false,
+    };
+};
+
 pub fn init(allocator: Allocator) Text {
     return .{
         .string = Array(u8).init(allocator),
+        .characters = Array(Character).init(allocator),
     };
 }
 
@@ -23,6 +36,16 @@ pub fn dupe(allocator: std.mem.Allocator, txt: []const u8) !Text {
     errdefer str.deinit();
     try str.string.appendSlice(txt);
     return str;
+}
+
+fn addCharacter(self: *Text, char: u8, options: Character.Options) !void {
+    try self.string.append(char);
+    const Char = Character{
+        .value = char,
+        .options = options,
+    };
+
+    try self.characters.append(Char);
 }
 
 /// Initializes a Text from a byte array.
@@ -39,8 +62,6 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
     var length_count: usize = 0;
     var array_count: usize = 0;
 
-    var string = std.ArrayList(u8).init(allocator);
-    errdefer string.deinit();
     var fieldType: ?Field.Kind = null;
 
     //TODO: Add text formatting
@@ -60,11 +81,12 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
                 break;
             } else if (char == 0x0d) {
                 // std.debug.print("\tfound newline\n", .{});
-                try string.append(' ');
+                try self.addCharacter(' ', .{});
+                try self.string.append(' ');
                 length_count += 1;
             } else {
                 // std.debug.print("\tfound ascii char: '{c}'\n", .{char});
-                try string.append(char);
+                try self.addCharacter(char, .{});
             }
         }
         // char >= 0x80
@@ -81,15 +103,15 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
                     array_count += 1;
                     // std.debug.print("\tfound background: '{c}'\n", .{strippedChar});
                     if (e & 0x01 == 1) {
-                        try string.append(strippedChar);
+                        try self.addCharacter(strippedChar, .{ .background = true });
                     } else {
-                        try string.append(strippedChar);
+                        try self.addCharacter(strippedChar, .{ .background = true });
                     }
                 },
                 0x81...0x8f => {
                     // Normal text
                     // std.debug.print("\tfound normal Char: '{c}'\n", .{strippedChar});
-                    try string.append(strippedChar);
+                    try self.addCharacter(strippedChar, .{});
                 },
                 0x90...0x9f => {
                     // Field Name / Type
@@ -99,7 +121,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
                         fieldType = cap;
                     } else {
                         // std.debug.print("\tfound field Char: '{c}'\n", .{strippedChar});
-                        try string.append(if (0 == strippedChar) ' ' else strippedChar);
+                        try self.addCharacter(if (0 == strippedChar) ' ' else strippedChar, .{ .field = true });
                     }
                 },
                 0xC0...0xCF => {
@@ -110,11 +132,11 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
                     length_count += 1;
 
                     // std.debug.print("\tfound regular Char: '{c}'\n", .{strippedChar});
-                    try string.append(strippedChar);
+                    try self.addCharacter(strippedChar, .{});
                 },
                 else => {
                     std.debug.print("Unknown char: 0x{X}\n", .{d});
-                    @panic("Unknown char");
+                    return error.UnknownCharacter;
                 },
             }
         }
@@ -122,19 +144,16 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
     }
 
     // trim string
-    while (string.items.len > 0 and string.getLast() == ' ') {
-        _ = string.pop();
+    while (self.string.items.len > 0 and self.string.getLast() == ' ') {
+        _ = self.string.pop();
     }
-    while (string.items.len > 0 and string.items[0] == ' ') {
-        _ = string.orderedRemove(0);
+    while (self.string.items.len > 0 and self.string.items[0] == ' ') {
+        _ = self.string.orderedRemove(0);
     }
 
-    self = .{
-        .string = string,
-        .field_type = fieldType,
-        .len = len,
-        .extra = chomp(slice[len - 2 ..]),
-    };
+    self.field_type = fieldType;
+    self.len = len;
+    self.extra = chomp(slice[len - 2 ..]);
 
     return self;
 }
@@ -148,6 +167,7 @@ fn chomp(in: []const u8) ?[]const u8 {
 
 pub fn deinit(self: Text) void {
     self.string.deinit();
+    self.characters.deinit();
 }
 
 pub fn asSlice(self: Text) []u8 {
