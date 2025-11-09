@@ -6,29 +6,31 @@ const LCFile = @This();
 
 blocks: Block.BlockList,
 header: Block.Header,
-schema: *Schema = undefined,
+schema: Schema,
 
-var raw: []u8 = undefined;
-var alloc: std.mem.Allocator = undefined;
+raw: []u8 = undefined,
+alloc: std.mem.Allocator,
 
-pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
-    const self = try allocator.create(LCFile);
-    errdefer allocator.destroy(self);
+pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !LCFile {
+    var self = LCFile{
+        .alloc = allocator,
+        .blocks = undefined,
+        .header = undefined,
+        .schema = undefined,
+        .raw = undefined,
+    };
 
-    alloc = allocator;
     const file = try std.fs.cwd().openFile(file_path, .{});
     defer file.close();
 
-    raw = try file.readToEndAlloc(
-        alloc,
+    self.raw = try file.readToEndAlloc(
+        self.alloc,
         std.math.maxInt(u32),
     );
-    errdefer alloc.free(raw);
-    self.* = .{
-        .header = try Block.Header.fromBytes(raw[0..128]),
-        .blocks = try Block.fromBytes(raw[128..]),
-    };
-    self.schema = try Schema.init(alloc, self.header, self.blocks);
+    errdefer self.alloc.free(self.raw);
+    self.header = try Block.Header.fromBytes(self.raw[0..128]);
+    self.blocks = try Block.fromBytes(self.raw[128..]);
+    self.schema = try Schema.init(self.alloc, self.header, self.blocks);
     errdefer self.deinit();
 
     return self;
@@ -36,8 +38,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !*LCFile {
 
 pub fn deinit(self: *LCFile) void {
     self.schema.deinit();
-    alloc.free(raw);
-    alloc.destroy(self);
+    self.alloc.free(self.raw);
 }
 
 test "LCFile" {

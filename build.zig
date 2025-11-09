@@ -5,20 +5,21 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const libLC = b.addStaticLibrary(.{
-        .name = "lastchoice",
-        .root_source_file = b.path( "src/libLC/liblc.zig" ),
+    const LCmod = b.addModule("lastchoice", .{
+        .root_source_file = b.path("src/libLC/liblc.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const libLC = b.addLibrary(.{
+        .name = "lastchoice",
+        .root_module = LCmod,
     });
     b.installArtifact(libLC);
 
     const exe = b.addExecutable(.{
         .name = "lastchoice",
 
-        .root_source_file = b.path( "src/main.zig" ),
-        .target = target,
-        .optimize = optimize,
+        .root_module = LCmod,
     });
     b.installArtifact(exe);
 
@@ -40,9 +41,7 @@ pub fn build(b: *std.Build) void {
     // test_step.dependOn(&run_main_tests.step);
 
     const libLC_tests = b.addTest(.{
-        .root_source_file = b.path( "src/libLC/liblc.zig" ),
-        .target = target,
-        .optimize = optimize,
+        .root_module = LCmod,
     });
     const run_libLC_tests = b.addRunArtifact(libLC_tests);
     test_step.dependOn(&run_libLC_tests.step);

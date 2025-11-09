@@ -1,8 +1,6 @@
 const std = @import("std");
 const Field = @This();
 
-var alloc: std.mem.Allocator = undefined;
-
 const TypeTag = enum(u8) {
     General = 1,
     Numeric = 2,
@@ -32,11 +30,15 @@ const Type = union(TypeTag) {
 type: TypeTag,
 string: std.ArrayList(u8),
 remaining: ?[]u8 = null,
+allocator: std.mem.Allocator,
 
-pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
-    alloc = allocator;
-    const self = try allocator.create(Field);
-    errdefer allocator.destroy(self);
+pub fn init(allocator: std.mem.Allocator, data: []u8) !Field {
+    var self = Field{
+        .allocator = allocator,
+        .string = .{},
+        .type = .General,
+        .remaining = null,
+    };
 
     const len = std.mem.readInt(u16, data[0..2], .big);
     const raw = data[2..];
@@ -50,8 +52,8 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
     var length_count: usize = 0;
     var array_count: usize = 0;
 
-    var string = std.ArrayList(u8).init(alloc);
-    errdefer string.deinit();
+    var string = std.ArrayList(u8){};
+    errdefer string.deinit(allocator);
     var fieldType: TypeTag = .General;
 
     while (length_count < len) {
@@ -66,11 +68,11 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
                 break;
             } else if (char == 0x0d) {
                 // std.debug.print("\tfound newline\n", .{});
-                try string.append(' ');
+                try string.append(allocator, ' ');
                 length_count += 1;
             } else {
                 // std.debug.print("\tfound ascii char: '{c}'\n", .{char});
-                try string.append(char);
+                try string.append(allocator, char);
             }
         }
         // char >= 0x80
@@ -87,15 +89,15 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
                     array_count += 1;
                     // std.debug.print("\tfound background: '{c}'\n", .{strippedChar});
                     if (e & 0x01 == 1) {
-                        try string.append(strippedChar);
+                        try string.append(allocator, strippedChar);
                     } else {
-                        try string.append(strippedChar);
+                        try string.append(allocator, strippedChar);
                     }
                 },
                 0x81...0x8f => {
                     // Normal text
                     // std.debug.print("\tfound normal Char: '{c}'\n", .{strippedChar});
-                    try string.append(strippedChar);
+                    try string.append(allocator, strippedChar);
                 },
                 0x90...0x9f => {
                     // Field Name / Type
@@ -105,7 +107,7 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
                         fieldType = cap;
                     } else {
                         // std.debug.print("\tfound field Char: '{c}'\n", .{strippedChar});
-                        try string.append(strippedChar);
+                        try string.append(allocator, strippedChar);
                     }
                 },
                 0xC0...0xCF => {
@@ -116,7 +118,7 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
                     length_count += 1;
 
                     // std.debug.print("\tfound regular Char: '{c}'\n", .{strippedChar});
-                    try string.append(strippedChar);
+                    try string.append(allocator, strippedChar);
                 },
                 else => {
                     std.debug.print("Unknown char: 0x{X}\n", .{d});
@@ -145,6 +147,5 @@ pub fn init(allocator: std.mem.Allocator, data: []u8) !*Field {
 }
 
 pub fn deinit(self: *Field) void {
-    self.string.deinit();
-    alloc.destroy(self);
+    self.string.deinit(self.allocator);
 }
