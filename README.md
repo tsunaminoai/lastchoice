@@ -104,6 +104,36 @@ with `fields`, `records`, and `formatting` arrays; record values are typed
   their raw display text, and each style run keeps the original marker byte, so
   data is never dropped even where the interpretation is uncertain.
 
+## Terminal browser (optional TUI)
+
+An optional full-screen terminal browser is available behind the `-Dtui` flag.
+It builds on [libvaxis](https://github.com/rockorager/libvaxis), which is a
+*lazy* dependency: the default `zig build` and `zig build test` never fetch or
+build it, so you only pay for it when you ask for the TUI.
+
+```bash
+zig build -Dtui tui               # builds ./zig-out/bin/lastchoice-tui
+./zig-out/bin/lastchoice-tui RESERVE.FOL
+```
+
+The left pane lists the schema (field name + kind); the main pane is a
+scrollable record table with the current row highlighted; the bottom line shows
+the file, the current record number, and the key hints.
+
+Keys:
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` or down / up | move the cursor by one record |
+| `PgDn` / `PgUp` | page through records |
+| `g` / `G` | jump to the first / last record |
+| `h` / `l` or left / right | scroll columns horizontally |
+| `e` | export to SQLite (`<basename>.db`); the result shows in the status line |
+| `q` / `Ctrl-C` | quit (restores the terminal) |
+
+The browser is a pure client of the parser library and the SQLite exporter; it
+contains no parsing logic of its own.
+
 ## Development
 
 ```bash

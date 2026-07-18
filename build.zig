@@ -57,4 +57,44 @@ pub fn build(b: *std.Build) void {
     const run_exe_tests = b.addRunArtifact(exe_tests);
     run_exe_tests.setCwd(b.path("."));
     test_step.dependOn(&run_exe_tests.step);
+
+    // Optional terminal (TUI) browser. vaxis is a lazy dependency (see
+    // build.zig.zon `.lazy = true`); gating the b.lazyDependency call behind
+    // -Dtui keeps the default `zig build`, `run`, and `test` from ever fetching
+    // or building it. The TUI is a pure client of the `lc` module and the
+    // SQLite exporter (which imports the `sqlite` C module).
+    const build_tui = b.option(bool, "tui", "Build the optional terminal (TUI) browser (requires -Dtui)") orelse false;
+    const tui_step = b.step("tui", "Build the optional terminal (TUI) browser (requires -Dtui)");
+    if (build_tui) {
+        if (b.lazyDependency("vaxis", .{ .target = target, .optimize = optimize })) |vaxis_dep| {
+            const tui_mod = b.createModule(.{
+                .root_source_file = b.path("src/tui/main.zig"),
+                .target = target,
+                .optimize = optimize,
+            });
+            // The SQLite exporter lives above the tui module's root directory,
+            // so expose it as its own module (it imports `lc` and `sqlite`).
+            const sqlite_export_mod = b.createModule(.{
+                .root_source_file = b.path("src/export/sqlite.zig"),
+                .target = target,
+                .optimize = optimize,
+            });
+            sqlite_export_mod.addImport("lc", lc_mod);
+            sqlite_export_mod.addImport("sqlite", sqlite_mod);
+
+            tui_mod.addImport("lc", lc_mod);
+            tui_mod.addImport("export_sqlite", sqlite_export_mod);
+            tui_mod.addImport("vaxis", vaxis_dep.module("vaxis"));
+
+            const tui_exe = b.addExecutable(.{
+                .name = "lastchoice-tui",
+                .root_module = tui_mod,
+            });
+            tui_step.dependOn(&b.addInstallArtifact(tui_exe, .{}).step);
+
+            const tui_tests = b.addTest(.{ .root_module = tui_mod });
+            const run_tui_tests = b.addRunArtifact(tui_tests);
+            tui_step.dependOn(&run_tui_tests.step);
+        }
+    }
 }
