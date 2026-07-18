@@ -29,4 +29,5 @@ test {
     _ = @import("text.zig");
     _ = @import("schema.zig");
     _ = @import("file.zig");
+    _ = @import("golden_test.zig");
 }
