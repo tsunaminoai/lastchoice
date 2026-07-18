@@ -2,26 +2,27 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-
     const optimize = b.standardOptimizeOption(.{});
 
-    const libLC = b.addStaticLibrary(.{
-        .name = "lastchoice",
+    // The reusable `lc` module: the FirstChoice .FOL parser library.
+    const lc_mod = b.createModule(.{
         .root_source_file = b.path("src/libLC/liblc.zig"),
         .target = target,
         .optimize = optimize,
     });
-    b.installArtifact(libLC);
 
-    const exe = b.addExecutable(.{
-        .name = "lastchoice",
-
+    // The CLI executable module, which consumes `lc`.
+    const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("lc", libLC.root_module);
-    exe.linkLibrary(libLC);
+    exe_mod.addImport("lc", lc_mod);
+
+    const exe = b.addExecutable(.{
+        .name = "lastchoice",
+        .root_module = exe_mod,
+    });
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -32,21 +33,11 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the converter");
     run_step.dependOn(&run_cmd.step);
 
-    const test_step = b.step("test", "Run library tests");
-    const libLC_tests = b.addTest(.{
-        .root_source_file = b.path("src/libLC/liblc.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    const run_libLC_tests = b.addRunArtifact(libLC_tests);
-    test_step.dependOn(&run_libLC_tests.step);
+    const lc_tests = b.addTest(.{ .root_module = lc_mod });
+    const run_lc_tests = b.addRunArtifact(lc_tests);
+    // Tests open fixtures such as test/TESTDB.FOL relative to the repo root.
+    run_lc_tests.setCwd(b.path("."));
 
-    const docs = exe.getEmittedDocs();
-    const install_docs = b.addInstallDirectory(.{
-        .source_dir = docs,
-        .install_dir = .prefix,
-        .install_subdir = "docs",
-    });
-    const docs_step = b.step("docs", "Build the documentation");
-    docs_step.dependOn(&install_docs.step);
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&run_lc_tests.step);
 }
