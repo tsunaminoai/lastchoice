@@ -24,8 +24,9 @@ pub fn init(allocator: std.mem.Allocator, name: Text) !Field {
     } };
 }
 
-pub fn deinit(_: Field) void {
-    // if (self.value == .General) self.value.General.deinit();
+pub fn deinit(self: Field) void {
+    self.name.deinit();
+    self.value.deinit();
 }
 
 pub const Kind = enum(u8) {
@@ -47,11 +48,19 @@ pub const Value = union(Kind) {
     Time: f32,
     Bool: bool,
 
-    pub fn format(self: Value, comptime _: []const u8, _: anytype, writer: anytype) !void {
+    pub fn deinit(self: Value) void {
+        switch (self) {
+            .General => |g| if (g) |txt| txt.deinit(),
+            .Date => |d| d.deinit(),
+            else => {},
+        }
+    }
+
+    pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         return switch (self) {
             .General => |g| if (g) |txt| try writer.print("{s}", .{txt.asSlice()}),
             .Numeric => |n| try writer.print("{d:0.2}", .{n}),
-            .Date => |d| try writer.print("{s}", .{d}),
+            .Date => |d| try writer.print("{s}", .{d.asSlice()}),
             .Time => |t| try writer.print("{d}", .{t}),
             .Bool => |b| if (b) try writer.writeAll("Y") else try writer.writeAll("N"),
         };
@@ -98,92 +107,3 @@ pub const Value = union(Kind) {
         return 0.0;
     }
 };
-
-pub const Base = struct {
-    name: Text,
-    values: std.ArrayList(Value),
-    type: Kind,
-
-    var alloc: std.mem.Allocator = undefined;
-
-    pub fn init(allocator: std.mem.Allocator, name: Text, tag: Kind) !*Base {
-        alloc = allocator;
-        const self = try allocator.create(Base);
-        errdefer allocator.destroy(self);
-        self.* = .{
-            .name = name,
-            .type = tag,
-            .values = std.ArrayList(Value).init(alloc),
-        };
-        return self;
-    }
-    pub fn initWithName(allocator: std.mem.Allocator, name: []const u8, tag: Kind) !*Base {
-        alloc = allocator;
-        const self = try allocator.create(Base);
-        errdefer allocator.destroy(self);
-        self.* = .{
-            .name = try Text.dupe(alloc, name),
-            .type = tag,
-            .values = std.ArrayList(Value).init(alloc),
-        };
-        return self;
-    }
-
-    pub fn deinit(self: *Base) void {
-        if (self.type == .General) {
-            for (self.values.items) |value| {
-                if (value.General) |str| str.deinit();
-            }
-        }
-        self.values.deinit();
-        self.name.deinit();
-        alloc.destroy(self);
-    }
-    pub fn addValue(self: *Base, value: Value) !void {
-        try self.values.append(value);
-    }
-    pub fn getValues(self: Base) []Value {
-        return self.values.items;
-    }
-};
-
-test "Field" {
-    var bytes: [0x32 + 2]u8 = [_]u8{
-        0x00, 0x32, 0xc6, 0x90, 0xe9, 0x90, 0xf2, 0x90,
-        0xf3, 0x90, 0xf4, 0x90, 0x80, 0x90, 0xee, 0x90,
-        0xe1, 0x90, 0xed, 0x90, 0xe5, 0x90, 0x81, 0x90,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-        0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-        0x20, 0x20, 0x20, 0x20,
-    };
-    const alloc = std.testing.allocator;
-    const t = try Text.initFromBytes(alloc, &bytes);
-
-    var f = try Base.init(alloc, t, .General);
-    defer f.deinit();
-
-    try std.testing.expect(std.mem.eql(u8, f.name.string.items, "First name"));
-    try f.addValue(try Value.fromSlice(.General, alloc, "Second name"));
-
-    var n = try Base.initWithName(alloc, "Numeric field", .Numeric);
-    defer n.deinit();
-
-    try n.addValue(try Value.fromSlice(.Numeric, alloc, "10.5"));
-    try std.testing.expectEqual(n.values.items[0].Numeric, 10.5);
-
-    var d = try Base.initWithName(alloc, "Date field", .Date);
-    defer d.deinit();
-
-    try d.addValue(try Value.fromSlice(.Date, alloc, "10/11/12"));
-    try d.addValue(try Value.fromSlice(.Date, alloc, "10/11/89"));
-    try std.testing.expectEqual(d.values.items[0].Date, 20121011);
-    try std.testing.expectEqual(d.values.items[1].Date, 19891011);
-
-    var b = try Base.initWithName(alloc, "Bool field", .Bool);
-    defer b.deinit();
-    try b.addValue(try Value.fromSlice(.Bool, alloc, "Y"));
-    try b.addValue(try Value.fromSlice(.Bool, alloc, "N"));
-    try std.testing.expectEqual(b.values.items[0].Bool, true);
-    try std.testing.expectEqual(b.values.items[1].Bool, false);
-}

@@ -1,19 +1,8 @@
 const std = @import("std");
 const LC = @import("lc");
 
-var global_allocator = std.heap.DebugAllocator(.{}){};
-var gpa = global_allocator.allocator();
-
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
-    ret: {
-        const msg = std.fmt.allocPrint(
-            gpa,
-            "Error: " ++ format ++ "\n" ++ help,
-            args,
-        ) catch break :ret;
-        std.io.getStdErr().writeAll(msg) catch {};
-    }
-
+    std.debug.print("Error: " ++ format ++ "\n" ++ help, args);
     std.process.exit(1);
 }
 
@@ -54,19 +43,29 @@ const help =
     \\
 ;
 
-pub fn main() anyerror!void {
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
+
     var arena_allocator = std.heap.ArenaAllocator.init(gpa);
     defer arena_allocator.deinit();
     const alloc = arena_allocator.allocator();
 
-    const arg_line = try std.process.argsAlloc(alloc);
-    const args = arg_line[1..];
+    var arg_list: std.ArrayList([]const u8) = .empty;
+    var arg_it = std.process.Args.Iterator.init(init.minimal.args);
+    _ = arg_it.next(); // skip the program name
+    while (arg_it.next()) |a| try arg_list.append(alloc, a);
+    const args = arg_list.items;
 
     if (args.len == 0) fatal("No args", .{});
 
     var filename: ?[]const u8 = null;
     var outfile: ?[]u8 = null;
-    const stdout = std.io.getStdOut().writer();
+
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_file = std.Io.File.stdout().writer(io, &stdout_buffer);
+    const stdout = &stdout_file.interface;
+    defer stdout_file.flush() catch {};
 
     const Options = packed struct(u4) {
         header: bool = false,
@@ -98,6 +97,7 @@ pub fn main() anyerror!void {
                 'a' => tmp = Options.enableAll(),
                 'h' => {
                     try stdout.print(help ++ "\n", .{});
+                    stdout_file.flush() catch {};
                     std.process.exit(0);
                 },
                 'd' => tmp.header = true,
@@ -122,30 +122,10 @@ pub fn main() anyerror!void {
         .{},
     );
 
-    var f = try LC.File.init(alloc, fname);
+    var f = try LC.File.init(alloc, io, fname);
     defer f.deinit();
 
     try f.fol.print_records(stdout);
 
     try stdout.writeAll("\n");
-}
-
-pub fn createOutputFile(filename: []const u8) !std.fs.File {
-    var outfile: std.fs.File = undefined;
-    outfile = std.fs.cwd().openFile(filename, .{
-        .mode = .write_only,
-    }) catch |err| switch (err) {
-        error.FileNotFound => {
-            return try std.fs.cwd().createFile(filename, .{
-                .truncate = true,
-            });
-        },
-        else => return err,
-    };
-
-    std.debug.print(
-        "Writing to \"{s}\" ({any})",
-        .{ filename, outfile.mode() },
-    );
-    return outfile;
 }

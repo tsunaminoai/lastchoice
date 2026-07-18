@@ -8,6 +8,7 @@ const Text = @This();
 
 string: std.ArrayList(u8),
 characters: Array(Character),
+allocator: Allocator,
 field_type: ?Field.Kind = null,
 len: usize = 0,
 extra: ?[]const u8 = null,
@@ -25,8 +26,9 @@ pub const Character = struct {
 
 pub fn init(allocator: Allocator) Text {
     return .{
-        .string = Array(u8).init(allocator),
-        .characters = Array(Character).init(allocator),
+        .string = .empty,
+        .characters = .empty,
+        .allocator = allocator,
     };
 }
 
@@ -34,18 +36,18 @@ pub fn init(allocator: Allocator) Text {
 pub fn dupe(allocator: std.mem.Allocator, txt: []const u8) !Text {
     var str = Text.init(allocator);
     errdefer str.deinit();
-    try str.string.appendSlice(txt);
+    try str.string.appendSlice(allocator, txt);
     return str;
 }
 
 fn addCharacter(self: *Text, char: u8, options: Character.Options) !void {
-    try self.string.append(char);
+    try self.string.append(self.allocator, char);
     const Char = Character{
         .value = char,
         .options = options,
     };
 
-    try self.characters.append(Char);
+    try self.characters.append(self.allocator, Char);
 }
 
 /// Initializes a Text from a byte array.
@@ -82,7 +84,7 @@ pub fn initFromBytes(allocator: std.mem.Allocator, data: []const u8) !Text {
             } else if (char == 0x0d) {
                 // std.debug.print("\tfound newline\n", .{});
                 try self.addCharacter(' ', .{});
-                try self.string.append(' ');
+                try self.string.append(self.allocator, ' ');
                 length_count += 1;
             } else {
                 // std.debug.print("\tfound ascii char: '{c}'\n", .{char});
@@ -166,17 +168,17 @@ fn chomp(in: []const u8) ?[]const u8 {
 }
 
 pub fn deinit(self: Text) void {
-    self.string.deinit();
-    self.characters.deinit();
+    var string = self.string;
+    var characters = self.characters;
+    string.deinit(self.allocator);
+    characters.deinit(self.allocator);
 }
 
 pub fn asSlice(self: Text) []u8 {
     return self.string.items;
 }
 
-pub fn format(self: Text, fmt: []const u8, options: anytype, writer: std.io.AnyWriter) !void {
-    _ = fmt;
-    _ = options;
+pub fn format(self: Text, writer: *std.Io.Writer) std.Io.Writer.Error!void {
     try writer.print(
         \\
         \\Text

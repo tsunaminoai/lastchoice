@@ -13,14 +13,11 @@ fol: *FOL,
 raw: []u8,
 allocator: Allocator,
 
-pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !LCFile {
+pub fn init(allocator: std.mem.Allocator, io: std.Io, file_path: []const u8) !LCFile {
     const fol = try allocator.create(FOL);
     errdefer allocator.destroy(fol);
 
-    const file = try std.fs.cwd().openFile(file_path, .{});
-    defer file.close();
-
-    const r = try file.readToEndAlloc(allocator, std.math.maxInt(u32));
+    const r = try std.Io.Dir.cwd().readFileAlloc(io, file_path, allocator, .unlimited);
     errdefer allocator.free(r);
 
     fol.* = try FOL.init(allocator, r);
@@ -33,23 +30,18 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !LCFile {
 }
 
 pub fn deinit(self: *LCFile) void {
-    // self.schema.deinit();
+    self.fol.deinit();
+    self.allocator.destroy(self.fol);
     self.allocator.free(self.raw);
-    self.allocator.destroy(self);
 }
 
 test "LCFile" {
     const allocator = std.testing.allocator;
-    const file = try init(allocator, "test/TESTDB.FOL");
-    defer deinit(file);
+    var file = try init(allocator, std.testing.io, "test/TESTDB.FOL");
+    defer file.deinit();
 
-    // try std.testing.expectEqual(raw.len, file.header.totalFileBlocks * 128 + 128);
-    try std.testing.expectEqual(file.blocks.len, file.header.totalFileBlocks);
+    try std.testing.expectEqual(file.fol.blocks.len, file.fol.header.totalFileBlocks);
 
-    const block = file.blocks[0];
-    _ = block; // autofix
-    // try std.testing.expectEqual(std.meta.activeTag(block), .Empty);
-    // for (file.blocks) |b| {
-    //     std.debug.print("{s}\n", .{@tagName(b.type)});
-    // }
+    const block = file.fol.blocks[0];
+    _ = block;
 }

@@ -3,6 +3,10 @@ pub const File = @import("file.zig");
 pub const Schema = @import("schema.zig");
 
 test {
-    const std = @import("std");
-    _ = std.testing.refAllDeclsRecursive(@This());
+    _ = @import("blocks.zig");
+    _ = @import("field.zig");
+    _ = @import("file.zig");
+    _ = @import("fol.zig");
+    _ = @import("schema.zig");
+    _ = @import("text.zig");
 }

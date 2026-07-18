@@ -25,7 +25,7 @@ pub fn init(alloc: Allocator, buffer: []u8) !FOL {
         .header = try Header.fromBytes(buffer[0..128]),
         .blocks = std.mem.bytesAsSlice(Block, buffer[128..]),
         .schema = undefined,
-        .records = Array(Record).init(alloc),
+        .records = .empty,
         .allocator = alloc,
     };
     f.schema = try Schema.init(alloc, f.header, f.blocks);
@@ -35,8 +35,12 @@ pub fn init(alloc: Allocator, buffer: []u8) !FOL {
     return f;
 }
 pub fn deinit(self: *FOL) void {
+    for (self.records.items) |*record| {
+        for (record.items) |value| value.deinit();
+        record.deinit(self.allocator);
+    }
+    self.records.deinit(self.allocator);
     self.schema.deinit();
-    // self.records.deinit();
     // No need to free blocks, they are part of the buffer
 }
 fn loadRecords(self: *FOL) !void {
@@ -76,12 +80,12 @@ fn loadRecordFromBlocks(self: *FOL, blocks: []align(1) Block) !void {
 
     // std.debug.print("{X:0.2}", .{record_data});
     const record = try self.readRecordFields(record_data);
-    try self.records.append(record);
+    try self.records.append(self.allocator, record);
 }
 
 fn readRecordFields(self: *FOL, data: []const u8) !Record {
-    var record: Record = Record.init(self.allocator);
-    errdefer record.deinit();
+    var record: Record = .empty;
+    errdefer record.deinit(self.allocator);
 
     var bytes: ?[]const u8 = data;
     for (self.schema.fields.items) |field| {
@@ -91,8 +95,9 @@ fn readRecordFields(self: *FOL, data: []const u8) !Record {
             // std.debug.print("Value text: {}\n", .{value_text});
             const value = try Field.Value.fromSlice(field.value, self.allocator, value_text.string.items);
 
-            try record.append(value);
-            bytes = value_text.extra;
+            try record.append(self.allocator, value);
+            bytes = value_text.extra; // slice into the record buffer, not value_text's own memory
+            value_text.deinit();
         }
     }
     // std.debug.print("Found {} Fields\n", .{self.fields.items.len});
@@ -109,19 +114,26 @@ pub fn print_records(self: FOL, writer: anytype) !void {
     try writer.writeAll("\n");
     for (self.records.items) |record| {
         for (record.items) |value| {
-            try writer.print("{}|\t", .{value});
+            try writer.print("{f}|\t", .{value});
         }
         try writer.writeAll("\n");
     }
 }
 
-test {
-    var buf: [4096]u8 = undefined;
-    var f = try std.fs.cwd().openFile("test/TESTDB.FOL", .{});
-    defer f.close();
+test "load records from TESTDB.FOL" {
+    const alloc = std.testing.allocator;
 
-    const n = try f.readAll(&buf);
-    const file = FOL.init(buf[0..n]);
-    std.debug.print("Header: {}\n", .{file.header});
-    std.debug.print("FDV: {}\n", .{file.blocks[file.header.schemaPosition()].data.Schema});
+    const raw = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
+        "test/TESTDB.FOL",
+        alloc,
+        .unlimited,
+    );
+    defer alloc.free(raw);
+
+    var f = try FOL.init(alloc, raw);
+    defer f.deinit();
+
+    try std.testing.expectEqual(f.header.availableDBFields, f.schema.fields.items.len);
+    try std.testing.expect(f.records.items.len > 0);
 }

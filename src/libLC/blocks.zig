@@ -37,9 +37,7 @@ pub const Block = extern struct {
         len_lines_on_screen: u16,
         len_lines: u16,
         data: [120]u8,
-        pub fn format(self: Form, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-            _ = fmt; // autofix
-            _ = options; // autofix
+        pub fn format(self: Form, writer: *std.Io.Writer) std.Io.Writer.Error!void {
             try writer.print("Schema Blocks: {}\n", .{self.num_blocks});
             try writer.print("Lines on Screen: {}\n", .{self.len_lines_on_screen});
             try writer.print("Lines: {}\n", .{self.len_lines});
@@ -123,9 +121,7 @@ pub const Header = extern struct {
     pub fn isValid(self: Header) bool {
         return std.mem.eql(u8, &self.magicString, &MagicString);
     }
-    pub fn format(self: Header, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-        _ = fmt; // autofix
-        _ = options; // autofix
+    pub fn format(self: Header, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         try writer.print("Form Index: {}\n", .{self.formDefinitionIndex});
         try writer.print("Last Used Block: {}\n", .{self.lastUsedBlock});
         try writer.print("Total File Blocks: {}\n", .{self.totalFileBlocks});

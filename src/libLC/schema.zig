@@ -23,7 +23,7 @@ pub fn init(
 ) !*Schema {
     const self = try allocator.create(Schema);
     self.allocator = allocator;
-    self.fields = Array(Field).init(allocator);
+    self.fields = .empty;
     self.num_fields = header.availableDBFields;
     errdefer allocator.destroy(self);
     {
@@ -39,7 +39,8 @@ pub fn deinit(self: *Schema) void {
     for (self.fields.items) |field| {
         field.deinit();
     }
-    self.fields.deinit();
+    self.fields.deinit(self.allocator);
+    self.allocator.destroy(self);
 }
 
 fn readDataFromBlocks(
@@ -91,7 +92,7 @@ fn readFields(self: *Schema, data: []const u8) !void {
         var field = try Field.init(self.allocator, name);
         errdefer field.deinit();
 
-        try self.fields.append(field);
+        try self.fields.append(self.allocator, field);
         // std.debug.print("Found field: {} {} of {}\n", .{ field, self.fields.items.len, self.num_fields });
         bytes = name.extra;
     }
