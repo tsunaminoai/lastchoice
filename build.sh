@@ -1,6 +1,6 @@
 #!/bin/bash
-targets=('x86_64' 'arm' 'aarch64' 'i386' 'riscv64')
-OSes=('linux' 'macos' 'windows' 'freebsd')
+targets=('x86_64' 'aarch64')
+OSes=('linux' 'macos' 'windows')
 
 echo > build.log
 successes=0
@@ -14,7 +14,7 @@ fi
 # Build for all targets
 for target in ${targets[@]}; do
     for os in ${OSes[@]}; do
-        rm -rf zig-out zig-cache
+        rm -rf zig-out .zig-cache
     
         echo -en "\x1b[30mBuilding for ${target}-${os} ... \x1b[0m" | tee -a build.log
         zig build \

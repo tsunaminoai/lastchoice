@@ -1,8 +1,11 @@
 dist
 zig-out
 .zig-cache
-*.FOL
+zig-pkg/
+/*.FOL
+!/RESERVE.FOL
 *.csv
 *.log
+*.db
 .devbox
 .envrc
