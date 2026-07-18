@@ -5,7 +5,6 @@ const tst = std.testing;
 const math = std.math;
 const Blocks = @import("blocks.zig");
 const Schema = @import("schema.zig");
-const Records = @import("record.zig");
 const FOL = @import("fol.zig");
 
 const LCFile = @This();

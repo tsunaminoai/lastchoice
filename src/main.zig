@@ -121,54 +121,12 @@ pub fn main() anyerror!void {
         "No input file specificed.",
         .{},
     );
-    // const file = try std.fs.cwd().openFile(fname, .{});
-    // defer file.close();
-    // const data = try file.readToEndAlloc(
-    //     alloc,
-    //     std.math.maxInt(u32),
-    // );
 
     var f = try LC.File.init(alloc, fname);
     defer f.deinit();
 
     try f.fol.print_records(stdout);
 
-    // std.debug.print("{any}\n", .{f.fol.header});
-    // for (f.fol.blocks) |b| {
-    //     std.debug.print("{}\n", .{b});
-    //     if (b.type == .FormDescriptionView) {
-    //         std.debug.print("{}\n", .{b.data.Schema});
-    //     }
-    // }
-    // std.debug.print("{any}\n", .{f.fol.blocks[f.fol.header.schemaPosition()].data.Schema});
-
-    // var f = FCF{ .arena = arena_allocator, .data = data };
-
-    // f.parse() catch |err| switch (err) {
-    //     error.InvalidMagic => fatal(
-    //         "Invalid FirstChoice database file - Magic number invalid",
-    //         .{},
-    //     ),
-    //     else => |e| return e,
-    // };
-
-    // if (options.header)
-    //     try f.printHeader(stdout);
-    // if (options.form)
-    //     try f.printForm(stdout);
-    // if (options.records)
-    //     try f.printRecords(stdout);
-    // if (options.csv) {
-    //     var writer = stdout;
-    //     var csvFile: ?std.fs.File = null;
-    //     if (outfile) |o| {
-    //         csvFile = try createOutputFile(o);
-    //         writer = csvFile.?.writer();
-    //     }
-    //     try f.toCSV(writer);
-    //     if (csvFile) |c|
-    //         c.close();
-    // }
     try stdout.writeAll("\n");
 }
 
