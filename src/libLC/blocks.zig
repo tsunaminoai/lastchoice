@@ -1,5 +1,4 @@
 const std = @import("std");
-const Schema = @import("schema.zig");
 
 pub const Block_Size = 128;
 
@@ -164,8 +163,7 @@ test "read header" {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     };
-    var head = try Header.fromBytes(&bytes);
-    // std.debug.print("{s}\n", .{head});
+    const head = try Header.fromBytes(&bytes);
 
     try std.testing.expectEqual(head.formDefinitionIndex, 8);
     try std.testing.expectEqual(head.lastUsedBlock, 28);
@@ -179,5 +177,4 @@ test "read header" {
     try std.testing.expectEqual(head.tableViewIndex, 0xFFFF);
     try std.testing.expectEqual(head.programRecordIndex, 0xFFFF);
     try std.testing.expectEqual(head.nextFieldSize, 8);
-    std.debug.print("{any}\n", .{head});
 }

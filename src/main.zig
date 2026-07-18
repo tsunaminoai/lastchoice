@@ -125,7 +125,5 @@ pub fn main(init: std.process.Init) !void {
     var f = try LC.File.init(alloc, io, fname);
     defer f.deinit();
 
-    try f.fol.print_records(stdout);
-
-    try stdout.writeAll("\n");
+    try f.print(stdout);
 }
