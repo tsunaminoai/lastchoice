@@ -45,9 +45,10 @@ pub fn main(init: std.process.Init) !void {
     const arena = arena_state.allocator();
 
     var arg_list: std.ArrayList([]const u8) = .empty;
-    var arg_it = std.process.Args.Iterator.init(init.minimal.args);
+    var arg_it = try std.process.Args.Iterator.initAllocator(init.minimal.args, gpa);
+    defer arg_it.deinit();
     _ = arg_it.next(); // skip program name
-    while (arg_it.next()) |a| try arg_list.append(arena, a);
+    while (arg_it.next()) |a| try arg_list.append(arena, try arena.dupe(u8, a));
     const args = arg_list.items;
 
     var stdout_buffer: [4096]u8 = undefined;
@@ -182,7 +183,7 @@ fn runDump(
         .sqlite => {
             const out = outfile orelse try defaultDbName(arena, fol_path);
             try sqlite.write(gpa, io, f, out);
-            try stdout.print("Wrote {d} records to {s}\n", .{ f.records.len, out });
+            try stdout.print("Wrote {d} record{s} to {s}\n", .{ f.records.len, if (f.records.len == 1) "" else "s", out });
         },
         .csv, .json => {
             if (outfile) |o| {
@@ -196,7 +197,7 @@ fn runDump(
                     try json.write(gpa, f, &fw.interface);
                 }
                 try fw.interface.flush();
-                try stdout.print("Wrote {d} records to {s}\n", .{ f.records.len, o });
+                try stdout.print("Wrote {d} record{s} to {s}\n", .{ f.records.len, if (f.records.len == 1) "" else "s", o });
             } else {
                 if (fmt == .csv) {
                     try csv.write(gpa, f, stdout);

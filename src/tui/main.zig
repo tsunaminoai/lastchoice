@@ -37,7 +37,8 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
 
     // argv[1] = FOL path. Fail cleanly (before touching the TTY) when missing.
-    var it = std.process.Args.Iterator.init(init.minimal.args);
+    var it = try std.process.Args.Iterator.initAllocator(init.minimal.args, gpa);
+    defer it.deinit();
     _ = it.next(); // argv0
     const path = it.next() orelse {
         std.debug.print("{s}", .{usage});
