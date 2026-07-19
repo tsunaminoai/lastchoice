@@ -1,17 +1,27 @@
 .{
-    .name = "lastchoice",
-    .version = "1.0.0",
+    .name = .lastchoice,
+    .version = "2.0.0",
+    .fingerprint = 0x29d88015bfc69d89,
+    .minimum_zig_version = "0.16.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "LICENSE",
         "README.md",
         "src/",
+        "test/",
     },
     .dependencies = .{
-        // .json = .{
-        //     .url = "https://github.com/getty-zig/json/archive/86cdb8c6eff6b1b6273b9dac6d6446fede4e11a7.tar.gz",
-        //     .hash = "12206721262e96803a9cdd2c58c2969ba2beb63306a85377aaeecd16fd8a177da3e6",
-        // },
+        .sqlite = .{
+            .url = "git+https://github.com/vrischmann/zig-sqlite#946d77c526258760b52836187af32d1a192c5d36",
+            .hash = "sqlite-3.48.0-F2R_azCQDgBGaWDIX4g2vxKpuqzYEQOOfAeJGMNocPu0",
+        },
+        // Only built for the (non-default, native-only) `tui` step via
+        // b.lazyDependency; lazy so `zig build`/`zig build test` never fetch it.
+        .vaxis = .{
+            .url = "git+https://github.com/rockorager/libvaxis#ca781b3c01f44a92e5331652823b5a9ce445be96",
+            .hash = "vaxis-0.6.0-BWNV_Gz5CQBTx7g34RYMPTL-bJhsFCU3ECHQ-CZlBVsn",
+            .lazy = true,
+        },
     },
 }

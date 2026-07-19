@@ -5,26 +5,37 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zig-version: [0.11.0, ]
     runs-on: ${{matrix.os}}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v2
         with:
-          version: ${{matrix.zig-version}}
+          version: 0.16.0
       - name: Run tests
         run: zig build test
+
+  tui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Build TUI
+        run: zig build -Dtui tui
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v2
         with:
-          version: 0.11.0
+          version: 0.16.0
       - name: Check code style
-        run: zig fmt --check src/*.zig
+        run: zig fmt --check .
